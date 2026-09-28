@@ -10,9 +10,23 @@ import {
   Sparkles,
   ArrowRight,
   TrendingUp,
-  Volume2
+  Volume2,
+  Wind,
+  Plus,
+  Minus,
+  RefreshCw,
+  Compass,
+  Layers,
+  Info
 } from 'lucide-react';
-import { SUBSTANCES, calculatePhase, MatterPhase, SubstanceInfo } from '../data/substancesData';
+import {
+  SUBSTANCES,
+  calculatePhase,
+  MatterPhase,
+  SubstanceInfo,
+  calculateEffectiveBoilingPoint,
+  calculateEffectiveMeltingPoint
+} from '../data/substancesData';
 
 interface Particle {
   x: number;
@@ -24,23 +38,27 @@ interface Particle {
   targetY: number;
   angle: number;
   vRot: number;
+  mass: number;
 }
 
 export const StatesOfMatter: React.FC = () => {
   const [substanceId, setSubstanceId] = useState<string>('water');
-  const [targetTemp, setTargetTemp] = useState<number>(300); // 300K default (liquid for water)
+  const [targetTemp, setTargetTemp] = useState<number>(300); // 300K default
   const [actualTemp, setActualTemp] = useState<number>(300);
-  const [volumeLidPercent, setVolumeLidPercent] = useState<number>(80); // 30-100%
-  const [gravityEnabled, setGravityEnabled] = useState<boolean>(true);
+  const [volumeLidPercent, setVolumeLidPercent] = useState<number>(75); // 20-100%
+  const [gravityPreset, setGravityPreset] = useState<'earth' | 'moon' | 'jupiter' | 'zero'>('earth');
+  const [gravityValue, setGravityValue] = useState<number>(1.0); // 0.0 to 2.5
+  const [particleCount, setParticleCount] = useState<number>(45); // 15 to 80 particles
   const [pressureAtm, setPressureAtm] = useState<number>(1.02);
   const [burnerActive, setBurnerActive] = useState<'heat' | 'cool' | null>(null);
+  const [isVenting, setIsVenting] = useState<boolean>(false);
+  const [isDraggingPiston, setIsDraggingPiston] = useState<boolean>(false);
 
   // Transition announcement banner state
-  const [lastAnnouncedPhase, setLastAnnouncedPhase] = useState<string>('liquid');
   const [transitionNotification, setTransitionNotification] = useState<{
     title: string;
     description: string;
-    type: 'melting' | 'boiling' | 'condensation' | 'freezing';
+    type: 'melting' | 'boiling' | 'condensation' | 'freezing' | 'sublimation' | 'pressure_liquefaction';
   } | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -49,27 +67,42 @@ export const StatesOfMatter: React.FC = () => {
   const rollingPressureRef = useRef<number[]>([]);
   const burnerIntervalRef = useRef<number | null>(null);
   const prevPhaseRef = useRef<string>('liquid');
+  const prevPistonYRef = useRef<number>(0);
+  const steamJetsRef = useRef<{ x: number; y: number; vx: number; vy: number; life: number }[]>([]);
 
   const substance: SubstanceInfo = SUBSTANCES[substanceId] || SUBSTANCES['water'];
-  const phaseInfo = calculatePhase(actualTemp, substance);
+  const phaseInfo = calculatePhase(actualTemp, substance, pressureAtm);
 
-  // Detect and announce phase changes whenever phaseInfo.phase changes
+  // Sync gravity presets with numerical gravity value
+  const handleSetGravityPreset = (preset: 'earth' | 'moon' | 'jupiter' | 'zero') => {
+    setGravityPreset(preset);
+    if (preset === 'earth') setGravityValue(1.0);
+    else if (preset === 'moon') setGravityValue(0.16);
+    else if (preset === 'jupiter') setGravityValue(2.5);
+    else if (preset === 'zero') setGravityValue(0.0);
+  };
+
+  // Phase transition detector
   useEffect(() => {
     const currentPhase = phaseInfo.phase;
     const prevPhase = prevPhaseRef.current;
 
     if (prevPhase !== currentPhase) {
       prevPhaseRef.current = currentPhase;
-      setLastAnnouncedPhase(currentPhase);
 
-      // Check transition type
-      if (
+      if (substance.isSublimating && pressureAtm < 5.1 && (currentPhase === 'gas' || currentPhase === 'melting')) {
+        setTransitionNotification({
+          title: '✨ حدوث التسامي المباشر (Sublimation)!',
+          description: `عند ضغط ${pressureAtm.toFixed(2)} Atm (أقل من النقطة الثلاثية 5.1 Atm)، يتحول ${substance.name} مباشرة من الحالة الصلبة إلى الغاز دون المرور بالحالة السائلة!`,
+          type: 'sublimation'
+        });
+      } else if (
         (prevPhase === 'solid' && (currentPhase === 'melting' || currentPhase === 'liquid')) ||
         (prevPhase === 'melting' && currentPhase === 'liquid')
       ) {
         setTransitionNotification({
           title: '🔥 حدوث الانصهار (Melting)!',
-          description: `تجاوزت درجة الحرارة نقطة انصهار ${substance.name} (${substance.meltingPointK} K). تكسرت الروابط الصلبة وتحولت المادة إلى الحالة السائلة المائعة.`,
+          description: `تجاوزت درجة الحرارة نقطة الانصهار (${phaseInfo.effectiveTm.toFixed(1)} K). تكسرت الروابط الشبكية الصلبة وبدأت الجزيئات بالانزلاق كمائع.`,
           type: 'melting'
         });
       } else if (
@@ -77,60 +110,68 @@ export const StatesOfMatter: React.FC = () => {
         (prevPhase === 'boiling' && currentPhase === 'gas')
       ) {
         setTransitionNotification({
-          title: '💨 حدوث التبخر والغليان (Boiling / Vaporization)!',
-          description: `تجاوزت درجة الحرارة نقطة غليان ${substance.name} (${substance.boilingPointK} K). تغلبت الطاقة الحركية للجزيئات على قوى التجاذب البيني، وتوسعت المادة لتملأ الوعاء كغاز حر.`,
+          title: '💨 حدوث التبخر والغليان (Boiling)!',
+          description: `تجاوزت درجة الحرارة نقطة الغليان الفعالة (${phaseInfo.effectiveTb.toFixed(1)} K). تغلبت الطاقة الحركية على قوى التجاذب البيني، وتمددت المادة كغاز حر.`,
           type: 'boiling'
         });
       } else if (
         (prevPhase === 'gas' && (currentPhase === 'boiling' || currentPhase === 'liquid')) ||
         (prevPhase === 'boiling' && currentPhase === 'liquid')
       ) {
+        const isPressureTriggered = volumeLidPercent < 55 && pressureAtm > 1.8;
         setTransitionNotification({
-          title: '💧 حدوث التكاثف (Condensation)!',
-          description: `انخفضت الحرارة دون نقطة الغليان (${substance.boilingPointK} K). فقدت جزيئات الغاز طاقتها الحركية وتقاربت لتشكل قطرات سائلة مائعة.`,
-          type: 'condensation'
+          title: isPressureTriggered ? '⚡ تكاثف بالضغط (Pressure Liquefaction)!' : '💧 حدوث التكاثف (Condensation)!',
+          description: isPressureTriggered
+            ? `أدى انخفاض الحجم وارتفاع الضغط إلى ${pressureAtm.toFixed(2)} Atm لرفع نقطة الغليان وإجبار جزيئات الغاز على التكاثف لسائل!`
+            : `انخفضت الحرارة دون نقطة الغليان (${phaseInfo.effectiveTb.toFixed(1)} K). تقاربت الجزيئات لتشكل قطرات سائلة مائعة.`,
+          type: isPressureTriggered ? 'pressure_liquefaction' : 'condensation'
         });
       } else if (
         (prevPhase === 'liquid' && (currentPhase === 'melting' || currentPhase === 'solid')) ||
         (prevPhase === 'melting' && currentPhase === 'solid')
       ) {
         setTransitionNotification({
-          title: '❄️ حدوث التجمد والتصلب (Freezing / Solidification)!',
-          description: `انخفضت الحرارة دون نقطة الانصهار (${substance.meltingPointK} K). ترابطت الجزيئات مجدداً في شبكة بلورية صلبة ثابتة لا تتدفق.`,
+          title: '❄️ حدوث التجمد والتصلب (Solidification)!',
+          description: `انخفضت الحرارة دون نقطة الانصهار (${phaseInfo.effectiveTm.toFixed(1)} K). ترابطت الجسيمات في بنية بلورية منتظمة وثابتة.`,
           type: 'freezing'
         });
       }
 
-      // Auto-hide notification banner after 6 seconds
       const timer = setTimeout(() => {
         setTransitionNotification(null);
-      }, 6000);
+      }, 5500);
       return () => clearTimeout(timer);
     }
-  }, [phaseInfo.phase, substance]);
+  }, [phaseInfo.phase, substance, pressureAtm, volumeLidPercent]);
 
-  // Initialize particles when substance or container reset
-  const initParticles = useCallback(() => {
+  // Dynamic Scale bounds for the temperature bar
+  const maxScaleK = Math.max(750, Math.ceil(substance.boilingPointK * 1.35 / 50) * 50);
+
+  // Initialize or update particles
+  const initParticles = useCallback((count = particleCount) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const w = canvas.width;
     const h = canvas.height;
-    const rows = 6;
-    const cols = 8;
-    const totalP = rows * cols; // 48 particles
-
-    const left = 25;
-    const right = w - 25;
-    const bottom = h - 20;
+    const left = 24;
+    const right = w - 24;
+    const bottom = h - 18;
 
     let pRadius = 7.5;
-    if (substance.id === 'argon') pRadius = 10;
+    if (substance.id === 'argon') pRadius = 9.5;
+    if (substance.id === 'helium') pRadius = 5.5;
+    if (substance.id === 'mercury') pRadius = 8.5;
+    if (substance.id === 'iron') pRadius = 8.0;
 
     const currentP = phaseInfo.phase;
     const particles: Particle[] = [];
+    const cols = Math.ceil(Math.sqrt(count * 1.3));
+    const rows = Math.ceil(count / cols);
 
-    for (let i = 0; i < totalP; i++) {
+    const lidY = 40 + ((100 - volumeLidPercent) * (h - 100)) / 100;
+
+    for (let i = 0; i < count; i++) {
       const col = i % cols;
       const row = Math.floor(i / cols);
 
@@ -138,40 +179,51 @@ export const StatesOfMatter: React.FC = () => {
       let py: number;
 
       if (currentP === 'solid') {
-        px = w / 2 - (cols * 22) / 2 + col * 22 + 11;
-        py = bottom - rows * 22 + row * 22 + 11;
+        const spacing = pRadius * 2.4;
+        px = w / 2 - (cols * spacing) / 2 + col * spacing + spacing / 2;
+        py = bottom - rows * spacing + row * spacing + spacing / 2;
       } else if (currentP === 'liquid' || currentP === 'melting') {
-        px = w / 2 - (cols * 24) / 2 + col * 24 + (Math.random() - 0.5) * 6;
-        py = bottom - rows * 20 + row * 20 + (Math.random() - 0.5) * 6;
+        if (gravityValue === 0) {
+          // Zero-G: cluster in the middle as a floating droplet
+          const rDrop = Math.sqrt(Math.random()) * 42;
+          const thDrop = Math.random() * Math.PI * 2;
+          px = w / 2 + Math.cos(thDrop) * rDrop;
+          py = (bottom + lidY) / 2 + Math.sin(thDrop) * rDrop;
+        } else {
+          // Settled on floor
+          const spacing = pRadius * 2.5;
+          px = w / 2 - (cols * spacing) / 2 + col * spacing + (Math.random() - 0.5) * 6;
+          py = bottom - rows * (spacing * 0.9) + row * (spacing * 0.9) + (Math.random() - 0.5) * 6;
+        }
       } else {
-        // Gas
-        const maxLidY = h - (volumeLidPercent / 100) * (h - 70);
+        // Gas: uniformly distributed
         px = left + pRadius + Math.random() * (right - left - pRadius * 2);
-        py = maxLidY + pRadius + Math.random() * (bottom - maxLidY - pRadius * 2);
+        py = lidY + pRadius + Math.random() * (bottom - lidY - pRadius * 2);
       }
 
       particles.push({
-        x: px,
-        y: py,
-        vx: (Math.random() - 0.5) * (targetTemp * 0.04),
-        vy: (Math.random() - 0.5) * (targetTemp * 0.04),
+        x: Math.max(left + pRadius, Math.min(right - pRadius, px)),
+        y: Math.max(lidY + pRadius, Math.min(bottom - pRadius, py)),
+        vx: (Math.random() - 0.5) * (Math.sqrt(targetTemp) * 0.18),
+        vy: (Math.random() - 0.5) * (Math.sqrt(targetTemp) * 0.18),
         radius: pRadius,
-        targetX: w / 2 - (cols * 22) / 2 + col * 22 + 11,
-        targetY: bottom - rows * 22 + row * 22 + 11,
+        targetX: px,
+        targetY: py,
         angle: Math.random() * Math.PI * 2,
-        vRot: (Math.random() - 0.5) * 0.08
+        vRot: (Math.random() - 0.5) * 0.08,
+        mass: substance.mass
       });
     }
 
     particlesRef.current = particles;
-  }, [substance, targetTemp, phaseInfo.phase, volumeLidPercent]);
+  }, [substance, targetTemp, phaseInfo.phase, volumeLidPercent, gravityValue, particleCount]);
 
-  // Re-init particles on substance switch
+  // Re-init particles on substance switch or particle count change
   useEffect(() => {
     setTargetTemp(substance.defaultTempK);
     setActualTemp(substance.defaultTempK);
-    initParticles();
-  }, [substanceId]);
+    initParticles(particleCount);
+  }, [substanceId, particleCount]);
 
   // Burner continuous heating/cooling interval
   const startBurner = (type: 'heat' | 'cool') => {
@@ -181,9 +233,9 @@ export const StatesOfMatter: React.FC = () => {
     burnerIntervalRef.current = window.setInterval(() => {
       setTargetTemp(prev => {
         if (type === 'heat') {
-          return Math.min(800, prev + 8);
+          return Math.min(1000, prev + 10);
         } else {
-          return Math.max(5, prev - 8);
+          return Math.max(2, prev - 10);
         }
       });
     }, 40);
@@ -197,7 +249,33 @@ export const StatesOfMatter: React.FC = () => {
     setBurnerActive(null);
   };
 
-  // Main Physics Simulation Loop
+  // Pressure Release Valve Venting
+  const triggerVent = () => {
+    setIsVenting(true);
+    // Remove some momentum and slightly expand volume or cool down
+    setTargetTemp(t => Math.max(5, t - 15));
+    // Spawn steam jet particles
+    for (let i = 0; i < 20; i++) {
+      steamJetsRef.current.push({
+        x: 40 + Math.random() * 10,
+        y: 45,
+        vx: (Math.random() - 0.5) * 3,
+        vy: -2 - Math.random() * 4,
+        life: 1.0
+      });
+    }
+    setTimeout(() => setIsVenting(false), 900);
+  };
+
+  // Add / remove particles
+  const changeParticleCount = (delta: number) => {
+    setParticleCount(prev => {
+      const next = Math.max(15, Math.min(80, prev + delta));
+      return next;
+    });
+  };
+
+  // Main Canvas Physics Simulation Loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -220,34 +298,36 @@ export const StatesOfMatter: React.FC = () => {
       const rightWall = w - 22;
       const bottomWall = h - 20;
 
-      // Lid Y based on volume slider
-      const lidY = 45 + ((100 - volumeLidPercent) * (h - 110)) / 100;
+      // Lid Y based on volume slider (Volume: 20% to 100%)
+      const lidY = 40 + ((100 - volumeLidPercent) * (h - 100)) / 100;
+      const pistonSpeed = lidY - prevPistonYRef.current;
+      prevPistonYRef.current = lidY;
 
       ctx.clearRect(0, 0, w, h);
 
       // Background container vessel
-      ctx.fillStyle = 'rgba(11, 16, 28, 0.95)';
+      ctx.fillStyle = 'rgba(10, 15, 29, 0.96)';
       ctx.fillRect(leftWall, lidY, rightWall - leftWall, bottomWall - lidY);
 
       // Thermal heat / ice background glow
       if (burnerActive === 'heat') {
-        const heatGrad = ctx.createLinearGradient(0, bottomWall, 0, bottomWall - 60);
-        heatGrad.addColorStop(0, 'rgba(234, 88, 12, 0.35)');
+        const heatGrad = ctx.createLinearGradient(0, bottomWall, 0, bottomWall - 80);
+        heatGrad.addColorStop(0, 'rgba(234, 88, 12, 0.45)');
         heatGrad.addColorStop(1, 'rgba(234, 88, 12, 0)');
         ctx.fillStyle = heatGrad;
-        ctx.fillRect(leftWall, bottomWall - 60, rightWall - leftWall, 60);
+        ctx.fillRect(leftWall, bottomWall - 80, rightWall - leftWall, 80);
       } else if (burnerActive === 'cool') {
-        const coolGrad = ctx.createLinearGradient(0, bottomWall, 0, bottomWall - 60);
-        coolGrad.addColorStop(0, 'rgba(6, 182, 212, 0.35)');
+        const coolGrad = ctx.createLinearGradient(0, bottomWall, 0, bottomWall - 80);
+        coolGrad.addColorStop(0, 'rgba(6, 182, 212, 0.45)');
         coolGrad.addColorStop(1, 'rgba(6, 182, 212, 0)');
         ctx.fillStyle = coolGrad;
-        ctx.fillRect(leftWall, bottomWall - 60, rightWall - leftWall, 60);
+        ctx.fillRect(leftWall, bottomWall - 80, rightWall - leftWall, 80);
       }
 
       // Container border walls
       ctx.beginPath();
-      ctx.strokeStyle = '#334155';
-      ctx.lineWidth = 4;
+      ctx.strokeStyle = pressureAtm > 4.5 ? '#f43f5e' : '#334155';
+      ctx.lineWidth = pressureAtm > 4.5 ? 5 : 4;
       ctx.moveTo(leftWall, lidY);
       ctx.lineTo(leftWall, bottomWall);
       ctx.lineTo(rightWall, bottomWall);
@@ -261,9 +341,38 @@ export const StatesOfMatter: React.FC = () => {
       ctx.lineWidth = 2;
       ctx.strokeRect(leftWall - 4, lidY - 14, rightWall - leftWall + 8, 14);
 
-      // Piston rod
+      // Piston rod & handle
       ctx.fillStyle = '#475569';
-      ctx.fillRect(w / 2 - 12, 10, 24, lidY - 24);
+      ctx.fillRect(w / 2 - 12, 8, 24, lidY - 22);
+
+      // Handle grip
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(w / 2 - 32, 6, 64, 8);
+      ctx.strokeStyle = '#06b6d4';
+      ctx.strokeRect(w / 2 - 32, 6, 64, 8);
+
+      // Safety Release Valve on Lid
+      ctx.fillStyle = isVenting ? '#ef4444' : '#64748b';
+      ctx.fillRect(leftWall + 20, lidY - 22, 14, 10);
+      if (isVenting) {
+        ctx.fillStyle = '#fca5a5';
+        ctx.beginPath();
+        ctx.arc(leftWall + 27, lidY - 24, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Render Steam Jet Particles when venting
+      for (let i = steamJetsRef.current.length - 1; i >= 0; i--) {
+        const sj = steamJetsRef.current[i];
+        sj.x += sj.vx;
+        sj.y += sj.vy;
+        sj.life -= 0.04;
+        ctx.fillStyle = `rgba(226, 232, 240, ${Math.max(0, sj.life * 0.7)})`;
+        ctx.beginPath();
+        ctx.arc(sj.x, sj.y, (1 - sj.life) * 8 + 3, 0, Math.PI * 2);
+        ctx.fill();
+        if (sj.life <= 0) steamJetsRef.current.splice(i, 1);
+      }
 
       // Kinetic Temperature scaling
       const particles = particlesRef.current;
@@ -271,113 +380,146 @@ export const StatesOfMatter: React.FC = () => {
 
       let totalKE = 0;
       particles.forEach(p => {
-        totalKE += 0.5 * (p.vx * p.vx + p.vy * p.vy);
+        totalKE += 0.5 * p.mass * (p.vx * p.vx + p.vy * p.vy);
       });
       const avgKE = n > 0 ? totalKE / n : 0.001;
-      const desiredKE = targetTemp * 0.055;
+      const desiredKE = targetTemp * 0.045;
 
       const scale = Math.sqrt(desiredKE / (avgKE + 0.001));
-      const velocityScale = Math.max(0.65, Math.min(1.35, scale));
+      const velocityScale = Math.max(0.7, Math.min(1.3, scale));
 
       // Gradual convergence of actualTemp towards targetTemp
       setActualTemp(prev => {
         const diff = targetTemp - prev;
-        if (Math.abs(diff) < 0.5) return targetTemp;
+        if (Math.abs(diff) < 0.4) return targetTemp;
         return prev + diff * 0.08;
       });
 
+      // Calculate Center of Mass for Zero-G cohesion
+      let comX = 0;
+      let comY = 0;
+      if (n > 0) {
+        particles.forEach(p => {
+          comX += p.x;
+          comY += p.y;
+        });
+        comX /= n;
+        comY /= n;
+      }
+
       // Particle physics update
       const currentP = phaseInfo.phase;
+      const gEffect = gravityValue * 0.12;
 
       particles.forEach(p => {
         // Temperature velocity regulation
         if (targetTemp > 0) {
-          p.vx *= 1 + (velocityScale - 1) * 0.12;
-          p.vy *= 1 + (velocityScale - 1) * 0.12;
+          p.vx *= 1 + (velocityScale - 1) * 0.1;
+          p.vy *= 1 + (velocityScale - 1) * 0.1;
         }
 
+        // REAL GRAVITY & PHASE PHYSICS
         if (currentP === 'solid') {
-          // Spring pull to anchor point in lattice
+          // Spring pull to anchor point in crystal lattice
           const dx = p.targetX - p.x;
           const dy = p.targetY - p.y;
-          p.vx += dx * 0.08;
-          p.vy += dy * 0.08;
+          p.vx += dx * 0.09;
+          p.vy += dy * 0.09;
 
-          // Thermal vibration jitter
-          const noise = Math.sqrt(actualTemp) * 0.12;
+          // Thermal jitter
+          const noise = Math.sqrt(actualTemp) * 0.08;
           p.vx += (Math.random() - 0.5) * noise;
           p.vy += (Math.random() - 0.5) * noise;
 
           p.vx *= 0.72;
           p.vy *= 0.72;
         } else if (currentP === 'melting') {
-          // Lattice begins to destabilize
+          // Destabilizing lattice
           const dx = p.targetX - p.x;
           const dy = p.targetY - p.y;
-          p.vx += dx * 0.03;
-          p.vy += dy * 0.03;
+          p.vx += dx * 0.025;
+          p.vy += dy * 0.025;
 
-          if (gravityEnabled) p.vy += 0.06;
+          p.vy += gEffect;
           p.vx *= 0.88;
           p.vy *= 0.88;
         } else if (currentP === 'liquid') {
-          // Flow and sliding at bottom with gravity
-          if (gravityEnabled) p.vy += 0.09;
+          // REAL GRAVITY EFFECT ON LIQUID:
+          if (gravityValue > 0) {
+            // Earth/Moon/Jupiter: Falls down and pools at bottom
+            p.vy += gEffect;
 
-          // Cohesion attraction to keep fluid together
-          particles.forEach(other => {
-            if (other === p) return;
-            const dx = other.x - p.x;
-            const dy = other.y - p.y;
+            // Fluid cohesion: attracts neighboring particles to stay together
+            particles.forEach(other => {
+              if (other === p) return;
+              const dx = other.x - p.x;
+              const dy = other.y - p.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist > 0 && dist < 38) {
+                p.vx += (dx / dist) * 0.035;
+                p.vy += (dy / dist) * 0.035;
+              }
+            });
+          } else {
+            // ZERO-G EFFECT: Surface tension pulls particles into a floating sphere at Center of Mass
+            const dx = comX - p.x;
+            const dy = comY - p.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist > 0 && dist < 42) {
-              p.vx += (dx / dist) * 0.032;
-              p.vy += (dy / dist) * 0.032;
+            if (dist > 15) {
+              p.vx += (dx / dist) * 0.045;
+              p.vy += (dy / dist) * 0.045;
             }
-          });
+          }
 
-          p.vx *= 0.98;
-          p.vy *= 0.98;
+          p.vx *= 0.97;
+          p.vy *= 0.97;
         } else if (currentP === 'boiling') {
-          // Boiling bubbles & expansion
-          if (gravityEnabled) p.vy += 0.03;
-          p.vy -= 0.08; // upward thermal buoyancy
+          // Thermal buoyancy upwards + gravity downwards
+          p.vy += gEffect * 0.35;
+          p.vy -= 0.12; // boiling bubbles escape upwards
         } else {
-          // Gas: free random motion
-          if (gravityEnabled) p.vy += 0.01;
+          // GAS PHASE:
+          // In gas, gravity creates an atmospheric density gradient (denser at bottom)
+          if (gravityValue > 0) {
+            p.vy += gEffect * 0.04;
+          }
         }
 
         p.angle += p.vRot;
         p.x += p.vx;
         p.y += p.vy;
 
-        // Wall collisions and momentum transfer for pressure
+        // REAL PRESSURE: Wall collisions & Piston mechanical work
         const r = p.radius;
-        const bounce = currentP === 'gas' ? 1.0 : 0.45;
+        const bounce = currentP === 'gas' ? 0.98 : 0.55;
 
-        // Left
+        // Left Wall
         if (p.x < leftWall + r) {
           p.x = leftWall + r;
           momentumExchangeRef.current += Math.abs(p.vx * 2);
           p.vx = -p.vx * bounce;
         }
-        // Right
+        // Right Wall
         if (p.x > rightWall - r) {
           p.x = rightWall - r;
           momentumExchangeRef.current += Math.abs(p.vx * 2);
           p.vx = -p.vx * bounce;
         }
-        // Bottom
+        // Bottom Floor
         if (p.y > bottomWall - r) {
           p.y = bottomWall - r;
           momentumExchangeRef.current += Math.abs(p.vy * 2);
           p.vy = -p.vy * bounce;
         }
-        // Top Lid
+        // Moving Top Piston / Lid (Adiabatic heating work)
         if (p.y < lidY + r) {
           p.y = lidY + r;
-          momentumExchangeRef.current += Math.abs(p.vy * 2);
-          p.vy = -p.vy * bounce;
+          momentumExchangeRef.current += Math.abs((p.vy - pistonSpeed) * 2);
+          // If piston is moving downward into gas, it transfers momentum (heating)
+          p.vy = -p.vy * bounce + pistonSpeed * 0.8;
+          if (Math.abs(pistonSpeed) > 0.5 && currentP === 'gas') {
+            setTargetTemp(t => Math.min(900, Math.max(10, Math.round(t - pistonSpeed * 0.35))));
+          }
         }
       });
 
@@ -414,35 +556,46 @@ export const StatesOfMatter: React.FC = () => {
         }
       }
 
-      // Pressure Gauge calculation: Force / Area
-      const vesselArea = (rightWall - leftWall) * (bottomWall - lidY);
-      const instantP = (momentumExchangeRef.current / (vesselArea + 1)) * 9500;
+      // REAL PRESSURE GAUGE CALCULATION:
+      // Ideal Gas & Real collision momentum P = (N * T / V) + Wall Collisions
+      const vesselHeight = bottomWall - lidY;
+      const vesselArea = (rightWall - leftWall) * vesselHeight;
+      const kineticP = (momentumExchangeRef.current / (vesselArea + 1)) * 11000;
       momentumExchangeRef.current = 0;
 
-      rollingPressureRef.current.push(instantP);
-      if (rollingPressureRef.current.length > 25) {
-        const avgP =
+      rollingPressureRef.current.push(kineticP);
+      if (rollingPressureRef.current.length > 20) {
+        const avgKinetic =
           rollingPressureRef.current.reduce((a, b) => a + b, 0) /
           rollingPressureRef.current.length;
         rollingPressureRef.current = [];
 
-        let calibratedP = avgP;
-        if (currentP === 'solid') calibratedP = actualTemp * 0.001;
-        if (currentP === 'liquid') calibratedP = actualTemp * 0.004;
+        // Realistic gas law: P = n * R * T / V
+        const volFraction = (vesselHeight / (bottomWall - 40));
+        let baseP = (n * (actualTemp / 300)) / (volFraction * 45);
 
-        setPressureAtm(Math.max(0.05, parseFloat(calibratedP.toFixed(2))));
+        if (currentP === 'solid') baseP *= 0.15;
+        if (currentP === 'liquid') baseP *= 0.45;
+
+        const calculatedAtm = Math.max(0.08, parseFloat((baseP * 0.7 + avgKinetic * 0.3).toFixed(2)));
+        setPressureAtm(calculatedAtm);
+
+        // Auto-relief valve trigger if pressure is critically high (> 8.0 Atm)
+        if (calculatedAtm > 7.5 && !isVenting) {
+          triggerVent();
+        }
       }
 
-      // Render Molecules
+      // RENDER MOLECULES & ATOMS (Supporting all added substances!)
       particles.forEach(p => {
         const rx = p.x;
         const ry = p.y;
         const theta = p.angle;
 
         if (substance.particleType === 'water') {
-          // Triatomic H2O: Central Oxygen (red) + 2 Hydrogens (white) at 104.5 degrees
+          // H2O: Central Oxygen (red) + 2 Hydrogens (white) at 104.5 degrees
           const hOffset = 6.5;
-          const hRadius = 3.5;
+          const hRadius = 3.2;
           const hAngle1 = theta + ((104.5 * Math.PI) / 180) / 2;
           const hAngle2 = theta - ((104.5 * Math.PI) / 180) / 2;
 
@@ -451,7 +604,7 @@ export const StatesOfMatter: React.FC = () => {
           const hx2 = rx + Math.cos(hAngle2) * hOffset;
           const hy2 = ry + Math.sin(hAngle2) * hOffset;
 
-          // Covalent bonds lines
+          // Covalent bonds
           ctx.beginPath();
           ctx.strokeStyle = '#94a3b8';
           ctx.lineWidth = 1.6;
@@ -459,19 +612,15 @@ export const StatesOfMatter: React.FC = () => {
           ctx.moveTo(rx, ry); ctx.lineTo(hx2, hy2);
           ctx.stroke();
 
-          // Hydrogen 1
-          ctx.beginPath();
-          ctx.arc(hx1, hy1, hRadius, 0, Math.PI * 2);
-          ctx.fillStyle = '#f1f5f9';
-          ctx.fill();
+          // Hydrogen atoms
+          [ {x: hx1, y: hy1}, {x: hx2, y: hy2} ].forEach(hPos => {
+            ctx.beginPath();
+            ctx.arc(hPos.x, hPos.y, hRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#f8fafc';
+            ctx.fill();
+          });
 
-          // Hydrogen 2
-          ctx.beginPath();
-          ctx.arc(hx2, hy2, hRadius, 0, Math.PI * 2);
-          ctx.fillStyle = '#f1f5f9';
-          ctx.fill();
-
-          // Central Oxygen
+          // Oxygen atom
           const oGrad = ctx.createRadialGradient(rx - 2, ry - 2, 1, rx, ry, 6);
           oGrad.addColorStop(0, '#fca5a5');
           oGrad.addColorStop(0.4, '#ef4444');
@@ -479,6 +628,62 @@ export const StatesOfMatter: React.FC = () => {
           ctx.beginPath();
           ctx.arc(rx, ry, 6, 0, Math.PI * 2);
           ctx.fillStyle = oGrad;
+          ctx.fill();
+        } else if (substance.particleType === 'co2') {
+          // CO2: Linear O=C=O (Central Carbon black/gray + 2 Oxygens red)
+          const offsetDist = 6.5;
+          const ox1 = rx + Math.cos(theta) * offsetDist;
+          const oy1 = ry + Math.sin(theta) * offsetDist;
+          const ox2 = rx - Math.cos(theta) * offsetDist;
+          const oy2 = ry - Math.sin(theta) * offsetDist;
+
+          ctx.beginPath();
+          ctx.strokeStyle = '#cbd5e1';
+          ctx.lineWidth = 2.4;
+          ctx.moveTo(ox1, oy1); ctx.lineTo(ox2, oy2);
+          ctx.stroke();
+
+          // Central Carbon
+          ctx.beginPath();
+          ctx.arc(rx, ry, 4.5, 0, Math.PI * 2);
+          ctx.fillStyle = '#475569';
+          ctx.fill();
+
+          // Oxygen spheres
+          [ {x: ox1, y: oy1}, {x: ox2, y: oy2} ].forEach(pos => {
+            const grad = ctx.createRadialGradient(pos.x - 1, pos.y - 1, 1, pos.x, pos.y, 4.5);
+            grad.addColorStop(0, '#fca5a5');
+            grad.addColorStop(0.5, '#ef4444');
+            grad.addColorStop(1, '#7f1d1d');
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, 4.5, 0, Math.PI * 2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+          });
+        } else if (substance.particleType === 'methane') {
+          // CH4: Central Carbon (teal) with 4 Hydrogen spokes
+          const hDist = 6.5;
+          for (let k = 0; k < 4; k++) {
+            const hAng = theta + (k * Math.PI) / 2;
+            const hx = rx + Math.cos(hAng) * hDist;
+            const hy = ry + Math.sin(hAng) * hDist;
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#5eead4';
+            ctx.lineWidth = 1.2;
+            ctx.moveTo(rx, ry); ctx.lineTo(hx, hy);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(hx, hy, 2.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#f8fafc';
+            ctx.fill();
+          }
+
+          // Central Carbon
+          ctx.beginPath();
+          ctx.arc(rx, ry, 5, 0, Math.PI * 2);
+          ctx.fillStyle = '#0d9488';
           ctx.fill();
         } else if (substance.particleType === 'diatomic') {
           // O2 or N2: Two bonded atoms
@@ -496,28 +701,43 @@ export const StatesOfMatter: React.FC = () => {
 
           const color = substance.color;
           [ {x: subX1, y: subY1}, {x: subX2, y: subY2} ].forEach(pos => {
-            const grad = ctx.createRadialGradient(pos.x - 2, pos.y - 2, 1, pos.x, pos.y, 6);
+            const grad = ctx.createRadialGradient(pos.x - 2, pos.y - 2, 1, pos.x, pos.y, 5.5);
             grad.addColorStop(0, '#ffffff');
-            grad.addColorStop(0.3, color);
-            grad.addColorStop(1, '#1e293b');
+            grad.addColorStop(0.35, color);
+            grad.addColorStop(1, '#0f172a');
             ctx.beginPath();
-            ctx.arc(pos.x, pos.y, 6, 0, Math.PI * 2);
+            ctx.arc(pos.x, pos.y, 5.5, 0, Math.PI * 2);
             ctx.fillStyle = grad;
             ctx.fill();
           });
-        } else {
-          // Monatomic Neon / Argon sphere
-          const color = substance.color;
-          const grad = ctx.createRadialGradient(rx - 2, ry - 2, 1, rx, ry, p.radius);
+        } else if (substance.particleType === 'metallic') {
+          // Mercury or Iron: Gleaming metallic sphere with high-specular reflection
+          const grad = ctx.createRadialGradient(rx - 3, ry - 3, 1, rx, ry, p.radius);
           grad.addColorStop(0, '#ffffff');
-          grad.addColorStop(0.35, color);
+          grad.addColorStop(0.3, substance.color);
+          grad.addColorStop(0.8, '#475569');
           grad.addColorStop(1, '#0f172a');
 
           ctx.beginPath();
           ctx.arc(rx, ry, p.radius, 0, Math.PI * 2);
           ctx.fillStyle = grad;
+          ctx.fill();
+          ctx.strokeStyle = '#94a3b8';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        } else {
+          // Monatomic Noble Gas (He, Ne, Ar)
+          const color = substance.color;
+          const grad = ctx.createRadialGradient(rx - 2, ry - 2, 1, rx, ry, p.radius);
+          grad.addColorStop(0, '#ffffff');
+          grad.addColorStop(0.35, color);
+          grad.addColorStop(1, '#090d16');
+
+          ctx.beginPath();
+          ctx.arc(rx, ry, p.radius, 0, Math.PI * 2);
+          ctx.fillStyle = grad;
           ctx.shadowColor = color;
-          ctx.shadowBlur = 4;
+          ctx.shadowBlur = actualTemp > 200 ? 5 : 2;
           ctx.fill();
           ctx.shadowBlur = 0;
         }
@@ -532,24 +752,69 @@ export const StatesOfMatter: React.FC = () => {
       isRunning = false;
       cancelAnimationFrame(animId);
     };
-  }, [substance, targetTemp, gravityEnabled, volumeLidPercent, phaseInfo.phase, burnerActive]);
+  }, [substance, targetTemp, gravityValue, volumeLidPercent, phaseInfo.phase, burnerActive, isVenting]);
 
   // Jump to specific state presets
   const jumpToPhase = (phase: 'solid' | 'liquid' | 'gas') => {
     let t: number;
+    const Tm = phaseInfo.effectiveTm;
+    const Tb = phaseInfo.effectiveTb;
+
     if (phase === 'solid') {
-      t = Math.max(5, substance.meltingPointK - 35);
+      t = Math.max(5, Tm - 35);
     } else if (phase === 'liquid') {
-      t = (substance.meltingPointK + substance.boilingPointK) / 2;
+      t = (Tm + Tb) / 2;
     } else {
-      t = substance.boilingPointK + 45;
+      t = Math.min(maxScaleK - 20, Tb + 45);
     }
     setTargetTemp(Math.round(t));
   };
 
+  // Interactive Click on the Temperature Ruler
+  const handleRulerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    const newTemp = Math.round(ratio * maxScaleK);
+    setTargetTemp(Math.max(5, newTemp));
+  };
+
+  // Dragging the Piston on Canvas
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const clickY = e.clientY - rect.top;
+    const h = canvas.height;
+    const currentLidY = 40 + ((100 - volumeLidPercent) * (h - 100)) / 100;
+
+    // Check if clicked near lid handle
+    if (Math.abs(clickY - currentLidY) < 30 || clickY < currentLidY) {
+      setIsDraggingPiston(true);
+    }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDraggingPiston) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const currentY = e.clientY - rect.top;
+    const h = canvas.height;
+
+    // Convert Y to Volume percent (40px is 100%, h-60 is 20%)
+    const clampedY = Math.max(40, Math.min(h - 60, currentY));
+    const newVol = Math.round(100 - ((clampedY - 40) / (h - 100)) * 100);
+    setVolumeLidPercent(Math.max(25, Math.min(100, newVol)));
+  };
+
+  const handleCanvasMouseUp = () => {
+    setIsDraggingPiston(false);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Live Phase Transition Alert Banner (Directly solves user request #2) */}
+      {/* Live Phase Transition Alert Banner */}
       {transitionNotification && (
         <div className="bg-gradient-to-l from-cyan-950 via-slate-900 to-slate-950 border-2 border-cyan-500 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="flex items-center gap-3">
@@ -558,12 +823,14 @@ export const StatesOfMatter: React.FC = () => {
               {transitionNotification.type === 'boiling' && '💨'}
               {transitionNotification.type === 'condensation' && '💧'}
               {transitionNotification.type === 'freezing' && '❄️'}
+              {transitionNotification.type === 'sublimation' && '✨'}
+              {transitionNotification.type === 'pressure_liquefaction' && '⚡'}
             </div>
             <div>
               <h4 className="text-base font-black text-cyan-300 flex items-center gap-2">
                 <span>{transitionNotification.title}</span>
                 <span className="text-xs font-mono bg-cyan-950 px-2 py-0.5 rounded border border-cyan-800 text-white">
-                  T = {actualTemp.toFixed(1)} K
+                  T = {actualTemp.toFixed(1)} K · P = {pressureAtm.toFixed(2)} Atm
                 </span>
               </h4>
               <p className="text-xs text-slate-300 mt-1 leading-relaxed">
@@ -581,13 +848,13 @@ export const StatesOfMatter: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Left Column: Substance Selection & Thermal Controls (Span 4) */}
+        {/* Left Column: Substance Selection & Physics Controls (Span 4) */}
         <div className="lg:col-span-4 flex flex-col gap-4">
-          {/* Substance Selector Card */}
+          {/* Substance Selector Card (Expanded with new elements!) */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3">
             <h3 className="font-bold text-slate-200 text-base pb-2 border-b border-slate-800 flex items-center justify-between">
               <span>المادة الكيميائية</span>
-              <span className="text-xs font-mono text-cyan-400">{substance.formula}</span>
+              <span className="text-xs font-mono text-cyan-400 font-bold">{substance.formula}</span>
             </h3>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -597,9 +864,9 @@ export const StatesOfMatter: React.FC = () => {
                   <button
                     key={sub.id}
                     onClick={() => setSubstanceId(sub.id)}
-                    className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                    className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 ${
                       isSelected
-                        ? 'bg-cyan-950/80 border-cyan-500 text-white shadow-sm shadow-cyan-500/30'
+                        ? 'bg-cyan-950/80 border-cyan-500 text-white shadow-sm shadow-cyan-500/30 ring-1 ring-cyan-400'
                         : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
                     }`}
                   >
@@ -610,144 +877,193 @@ export const StatesOfMatter: React.FC = () => {
               })}
             </div>
 
-            {/* Substance Thermal Constants */}
+            {/* Substance Thermal & Physical Constants */}
             <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-xs space-y-1.5">
               <div className="flex justify-between items-center text-slate-400">
-                <span>درجة الانصهار (Tₘ):</span>
+                <span>نقطة الانصهار القياسية (Tₘ):</span>
                 <span className="font-mono font-bold text-blue-400">
                   {substance.meltingPointK.toFixed(1)} K ({(substance.meltingPointK - 273.15).toFixed(1)} °C)
                 </span>
               </div>
               <div className="flex justify-between items-center text-slate-400">
-                <span>درجة الغليان (T_b):</span>
+                <span>نقطة الغليان القياسية (T_b):</span>
                 <span className="font-mono font-bold text-orange-400">
                   {substance.boilingPointK.toFixed(1)} K ({(substance.boilingPointK - 273.15).toFixed(1)} °C)
                 </span>
               </div>
+              <div className="flex justify-between items-center text-slate-400 pt-1 border-t border-slate-800">
+                <span>الكتلة الجزيئية (Mass):</span>
+                <span className="font-mono text-cyan-300">{substance.mass.toFixed(2)} u</span>
+              </div>
             </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/40">
+              {substance.desc}
+            </p>
           </div>
 
-          {/* Thermal & Burner Controls Card */}
+          {/* REAL GRAVITY CONTROLS CARD */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
             <h3 className="font-bold text-slate-200 text-base pb-2 border-b border-slate-800 flex items-center justify-between">
-              <span>التحكم الحراري والميكانيكي</span>
-              <Flame className="w-4 h-4 text-orange-400" />
+              <span className="flex items-center gap-2">
+                <Compass className="w-4 h-4 text-cyan-400" />
+                <span>حقل الجاذبية الأرضية والكونية</span>
+              </span>
+              <span className="text-xs font-mono text-cyan-400 font-bold">{gravityValue.toFixed(2)} g</span>
             </h3>
 
-            {/* Target Temperature Slider */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-semibold">درجة الحرارة المطلوبة:</span>
-                <span className="font-mono font-extrabold text-orange-400 text-sm">
-                  {targetTemp} K ({Math.round(targetTemp - 273.15)} °C)
-                </span>
-              </div>
-              <input
-                type="range"
-                min="5"
-                max="800"
-                value={targetTemp}
-                onChange={(e) => setTargetTemp(parseInt(e.target.value))}
-                className="w-full h-2 bg-slate-800 rounded-lg cursor-pointer"
-              />
-              <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                <span>5 K (تبريد فائق)</span>
-                <span>300 K (حرارة الغرفة)</span>
-                <span>800 K (حرارة فائقة)</span>
-              </div>
-            </div>
-
-            {/* Continuous Burner Controls (Fire & Ice) */}
-            <div className="grid grid-cols-2 gap-2">
+            {/* Gravity Planetary Presets */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               <button
-                onMouseDown={() => startBurner('heat')}
-                onMouseUp={stopBurner}
-                onMouseLeave={stopBurner}
-                onTouchStart={() => startBurner('heat')}
-                onTouchEnd={stopBurner}
-                className={`py-3 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all select-none ${
-                  burnerActive === 'heat'
-                    ? 'bg-orange-600 border-orange-400 text-white shadow-lg shadow-orange-500/40 scale-[0.98]'
-                    : 'bg-orange-950/40 border-orange-900/50 text-orange-400 hover:bg-orange-900/40'
+                onClick={() => handleSetGravityPreset('earth')}
+                className={`py-2 px-1.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 ${
+                  gravityPreset === 'earth'
+                    ? 'bg-cyan-950 border-cyan-500 text-cyan-300 font-bold shadow-sm'
+                    : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:text-white'
                 }`}
               >
-                <Flame className={`w-4 h-4 ${burnerActive === 'heat' ? 'animate-bounce' : 'animate-pulse'}`} />
-                <span>تسخين مستمر (استمر بالضغط)</span>
+                <span className="text-sm">🌍</span>
+                <span className="text-[11px]">الأرض (1.0g)</span>
               </button>
 
               <button
-                onMouseDown={() => startBurner('cool')}
-                onMouseUp={stopBurner}
-                onMouseLeave={stopBurner}
-                onTouchStart={() => startBurner('cool')}
-                onTouchEnd={stopBurner}
-                className={`py-3 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all select-none ${
-                  burnerActive === 'cool'
-                    ? 'bg-cyan-600 border-cyan-400 text-white shadow-lg shadow-cyan-500/40 scale-[0.98]'
-                    : 'bg-cyan-950/40 border-cyan-900/50 text-cyan-400 hover:bg-cyan-900/40'
+                onClick={() => handleSetGravityPreset('moon')}
+                className={`py-2 px-1.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 ${
+                  gravityPreset === 'moon'
+                    ? 'bg-cyan-950 border-cyan-500 text-cyan-300 font-bold shadow-sm'
+                    : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:text-white'
                 }`}
               >
-                <Snowflake className={`w-4 h-4 ${burnerActive === 'cool' ? 'animate-spin' : ''}`} />
-                <span>تبريد مستمر (استمر بالضغط)</span>
+                <span className="text-sm">🌕</span>
+                <span className="text-[11px]">القمر (0.16g)</span>
+              </button>
+
+              <button
+                onClick={() => handleSetGravityPreset('jupiter')}
+                className={`py-2 px-1.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 ${
+                  gravityPreset === 'jupiter'
+                    ? 'bg-cyan-950 border-cyan-500 text-cyan-300 font-bold shadow-sm'
+                    : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                <span className="text-sm">🪐</span>
+                <span className="text-[11px]">المشتري (2.5g)</span>
+              </button>
+
+              <button
+                onClick={() => handleSetGravityPreset('zero')}
+                className={`py-2 px-1.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 ${
+                  gravityPreset === 'zero'
+                    ? 'bg-purple-950 border-purple-500 text-purple-300 font-bold shadow-sm ring-1 ring-purple-400'
+                    : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                <span className="text-sm">🚀</span>
+                <span className="text-[11px]">انعدام وزن</span>
               </button>
             </div>
 
-            {/* Container Volume Lid Slider (Boyle's Law) */}
-            <div className="space-y-2 pt-2 border-t border-slate-800">
+            {/* Continuous Gravity Slider */}
+            <div className="space-y-1.5">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-semibold">حجم الوعاء (مستوى المكبس):</span>
-                <span className="font-mono font-bold text-cyan-400">{volumeLidPercent}%</span>
+                <span className="text-slate-400 font-medium">تسارع الجاذبية المستمر (g):</span>
+                <span className="font-mono text-cyan-300 font-bold">{(gravityValue * 9.8).toFixed(1)} m/s²</span>
               </div>
               <input
                 type="range"
-                min="30"
-                max="100"
-                value={volumeLidPercent}
-                onChange={(e) => setVolumeLidPercent(parseInt(e.target.value))}
+                min="0"
+                max="300"
+                value={Math.round(gravityValue * 100)}
+                onChange={(e) => {
+                  setGravityValue(parseInt(e.target.value) / 100);
+                  setGravityPreset('earth');
+                }}
                 className="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer"
               />
+              <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                <span>0.0 g (فضاء حر)</span>
+                <span>1.0 g (أرضي)</span>
+                <span>3.0 g (فائق)</span>
+              </div>
             </div>
 
-            {/* Gravity Toggle */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
-              <span className="text-slate-300 font-medium">الجاذبية الأرضية:</span>
+            <p className="text-[11px] text-slate-400 bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/40">
+              💡 <strong>التأثير الفيزيائي:</strong> عند اختيار <em>انعدام الوزن (Zero-G)</em>، تتغلب قوى التوتر السطحي والتجاذب البيني لتجعل السائل يتجمع في كرة مائية طافية بمنتصف الوعاء!
+            </p>
+          </div>
+
+          {/* Particle Pump & Injection Card */}
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3">
+            <h3 className="font-bold text-slate-200 text-base pb-2 border-b border-slate-800 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-cyan-400" />
+                <span>مضخة الذرات وكثافة المادة</span>
+              </span>
+              <span className="text-xs font-mono text-cyan-400 font-bold">{particleCount} جزيء</span>
+            </h3>
+
+            <div className="flex items-center justify-between gap-3">
               <button
-                onClick={() => setGravityEnabled(g => !g)}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                  gravityEnabled ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-400'
-                }`}
+                onClick={() => changeParticleCount(-10)}
+                disabled={particleCount <= 15}
+                className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded-xl text-xs font-bold text-slate-200 flex items-center justify-center gap-1.5 transition-all"
               >
-                {gravityEnabled ? 'مفعلة' : 'معطلة (انعدام وزن)'}
+                <Minus className="w-3.5 h-3.5" />
+                <span>تفريغ جزيئات</span>
+              </button>
+
+              <button
+                onClick={() => changeParticleCount(10)}
+                disabled={particleCount >= 80}
+                className="flex-1 py-2 px-3 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-40 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 transition-all shadow-sm shadow-cyan-600/30"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>ضخ جزيئات إضافية</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Middle Column: Physical Simulation Vessel & Phase Gauge (Span 5) */}
+        {/* Middle Column: Physical Simulation Vessel & Correct Phase Gauge (Span 5) */}
         <div className="lg:col-span-5 flex flex-col items-center gap-4">
           <div className="w-full bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg flex flex-col items-center">
-            {/* Top State Badge */}
+            {/* Top State Badge & Manometer */}
             <div className="w-full flex items-center justify-between mb-3 px-1">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-medium">حالة المادة الحالية:</span>
+                <span className="text-xs text-slate-400 font-medium">الحالة:</span>
                 <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black border ${phaseInfo.badgeClass}`}>
                   {phaseInfo.phaseAr}
                 </span>
               </div>
 
-              <span className="text-xs font-mono text-slate-400">
-                P ≈ {pressureAtm} Atm
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${pressureAtm > 4.5 ? 'bg-red-950 text-red-400 border border-red-800' : 'bg-slate-950 text-cyan-400 border border-slate-800'}`}>
+                  P = {pressureAtm.toFixed(2)} Atm
+                </span>
+                <button
+                  onClick={triggerVent}
+                  title="صمام تفريغ الأمان لتخفيف الضغط"
+                  className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 font-bold flex items-center gap-1"
+                >
+                  <Wind className="w-3 h-3 text-cyan-400" />
+                  <span>تفريغ</span>
+                </button>
+              </div>
             </div>
 
-            {/* Interactive Canvas */}
-            <div className="relative w-full aspect-[4/3] max-w-[440px] bg-slate-950/80 border-2 border-slate-700/60 rounded-xl overflow-hidden shadow-2xl">
+            {/* Interactive Canvas Stage */}
+            <div className="relative w-full aspect-[4/3] max-w-[460px] bg-slate-950/90 border-2 border-slate-700/60 rounded-xl overflow-hidden shadow-2xl">
               <canvas
                 ref={canvasRef}
-                width={440}
-                height={330}
-                className="w-full h-full relative z-10"
+                width={460}
+                height={345}
+                onMouseDown={handleCanvasMouseDown}
+                onMouseMove={handleCanvasMouseMove}
+                onMouseUp={handleCanvasMouseUp}
+                className="w-full h-full relative z-10 cursor-ns-resize"
               />
+              <div className="absolute top-2 left-2 z-20 pointer-events-none text-[10px] text-slate-400 bg-slate-900/70 px-2 py-1 rounded border border-slate-800">
+                ↕ اسحب المكبس بالماوس لتغيير الحجم والضغط
+              </div>
             </div>
 
             {/* Quick State Presets */}
@@ -785,66 +1101,178 @@ export const StatesOfMatter: React.FC = () => {
             </div>
           </div>
 
-          {/* Temperature Phase Diagram Bar (Visual Ruler) */}
-          <div className="w-full bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-2">
+          {/* TEMPERATURE PHASE DIAGRAM RULER (FIXED & ALIGNED!) */}
+          <div className="w-full bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-2.5">
             <div className="flex justify-between items-center text-xs font-semibold text-slate-300">
-              <span>شريط أطوار المادة ومواقع الانتقال الطوري:</span>
-              <span className="font-mono text-cyan-400">{actualTemp.toFixed(1)} K</span>
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                <span>مقياس أطوار المادة والانتقالات الحرارية (انقر لتحديد الحرارة):</span>
+              </span>
+              <span className="font-mono text-cyan-400 font-bold">{actualTemp.toFixed(1)} K</span>
             </div>
 
-            {/* Visual Bar */}
-            <div className="relative h-6 bg-slate-950 rounded-xl border border-slate-800 overflow-hidden flex items-center text-[10px] font-bold text-center">
-              {/* Solid Zone */}
-              <div
-                style={{ width: `${Math.min(40, (substance.meltingPointK / 600) * 100)}%` }}
-                className="h-full bg-blue-950/60 text-blue-400 flex items-center justify-center border-l border-blue-500/40 truncate"
-              >
-                صلب
-              </div>
-
-              {/* Liquid Zone */}
+            {/* Visual Ruler Bar: Set explicitly to dir="ltr" so 0 K (Solid) is on the Left, and high Temp (Gas) is on the Right! */}
+            <div
+              dir="ltr"
+              onClick={handleRulerClick}
+              className="relative h-8 bg-slate-950 rounded-xl border border-slate-800 overflow-hidden flex items-center text-[11px] font-bold text-center cursor-pointer select-none"
+            >
+              {/* Solid Zone (0 K to Tm) */}
               <div
                 style={{
-                  width: `${Math.max(15, ((substance.boilingPointK - substance.meltingPointK) / 600) * 100)}%`
+                  width: `${Math.min(50, Math.max(12, (phaseInfo.effectiveTm / maxScaleK) * 100))}%`
                 }}
-                className="h-full bg-cyan-950/60 text-cyan-300 flex items-center justify-center border-l border-cyan-500/40 truncate"
+                className="h-full bg-blue-950/70 text-blue-300 flex items-center justify-center border-r border-blue-500/50 truncate px-1 transition-all"
               >
-                سائل
+                <span>صلب 🧊</span>
               </div>
 
-              {/* Gas Zone */}
-              <div className="flex-1 h-full bg-orange-950/60 text-orange-400 flex items-center justify-center truncate">
-                غاز
-              </div>
-
-              {/* Needle Indicator for current actualTemp */}
+              {/* Liquid Zone (Tm to Tb) */}
               <div
-                className="absolute top-0 bottom-0 w-1 bg-white shadow-lg shadow-white z-20 transition-all duration-150"
                 style={{
-                  left: `${Math.max(2, Math.min(98, (actualTemp / 600) * 100))}%`
+                  width: `${Math.max(14, ((phaseInfo.effectiveTb - phaseInfo.effectiveTm) / maxScaleK) * 100)}%`
                 }}
-              />
+                className="h-full bg-cyan-950/70 text-cyan-200 flex items-center justify-center border-r border-cyan-500/50 truncate px-1 transition-all"
+              >
+                <span>سائل 💧</span>
+              </div>
+
+              {/* Gas Zone (Tb to MaxScale) */}
+              <div className="flex-1 h-full bg-orange-950/70 text-orange-300 flex items-center justify-center truncate px-1 transition-all">
+                <span>غاز 💨</span>
+              </div>
+
+              {/* Needle Indicator for current actualTemp (Correctly moves with temperature!) */}
+              <div
+                className="absolute top-0 bottom-0 w-1.5 bg-white shadow-[0_0_10px_#ffffff] z-30 transition-all duration-100 pointer-events-none"
+                style={{
+                  left: `${Math.max(1, Math.min(99, (actualTemp / maxScaleK) * 100))}%`
+                }}
+              >
+                {/* Needle Floating Pin */}
+                <div className="absolute -top-1 -left-1.5 w-4 h-3 bg-white rounded-t-sm shadow-md" />
+              </div>
             </div>
 
-            <div className="flex justify-between text-[10px] text-slate-400 pt-1">
-              <span>0 K (الصفر المطلق)</span>
-              <span className="text-blue-400 font-mono">Tₘ: {substance.meltingPointK.toFixed(0)} K</span>
-              <span className="text-orange-400 font-mono">T_b: {substance.boilingPointK.toFixed(0)} K</span>
-              <span>600 K</span>
+            {/* Scale Axis Labels aligned with LTR physical axis */}
+            <div dir="ltr" className="flex justify-between text-[10px] text-slate-400 pt-0.5 font-mono">
+              <span className="text-blue-400">0 K (صلب)</span>
+              <span className="text-cyan-300 font-bold">
+                Tₘ: {phaseInfo.effectiveTm.toFixed(0)} K
+              </span>
+              <span className="text-orange-400 font-bold">
+                T_b: {phaseInfo.effectiveTb.toFixed(0)} K
+              </span>
+              <span className="text-amber-400">{maxScaleK} K (غاز)</span>
+            </div>
+
+            {/* Direct Explanation of the Active Phase */}
+            <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 text-[11px] text-slate-300 flex items-center justify-between">
+              <span>الموقع الحالي على الشريط:</span>
+              <span className="font-bold text-cyan-400 font-mono">
+                {actualTemp < phaseInfo.effectiveTm ? 'نطاق الصلابة 🧊' : actualTemp > phaseInfo.effectiveTb ? 'نطاق الغاز 💨' : 'نطاق السيولة 💧'}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Live Gauges & Thermodynamics Explanations (Span 3) */}
+        {/* Right Column: Thermal & Pressure Controls + Gauges (Span 3) */}
         <div className="lg:col-span-3 flex flex-col gap-4">
+          {/* Thermal Slider & Continuous Burner Controls Card */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
+            <h3 className="font-bold text-slate-200 text-base pb-2 border-b border-slate-800 flex items-center justify-between">
+              <span>التحكم الحراري والموقد</span>
+              <Flame className="w-4 h-4 text-orange-400" />
+            </h3>
+
+            {/* Target Temperature Slider */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400 font-semibold">درجة الحرارة المطلوبة:</span>
+                <span className="font-mono font-extrabold text-orange-400 text-sm">
+                  {targetTemp} K ({Math.round(targetTemp - 273.15)} °C)
+                </span>
+              </div>
+              <input
+                type="range"
+                min="5"
+                max={maxScaleK}
+                value={targetTemp}
+                onChange={(e) => setTargetTemp(parseInt(e.target.value))}
+                className="w-full h-2 bg-slate-800 rounded-lg cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                <span>5 K</span>
+                <span>300 K</span>
+                <span>{maxScaleK} K</span>
+              </div>
+            </div>
+
+            {/* Continuous Burner Controls (Fire & Ice) */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onMouseDown={() => startBurner('heat')}
+                onMouseUp={stopBurner}
+                onMouseLeave={stopBurner}
+                onTouchStart={() => startBurner('heat')}
+                onTouchEnd={stopBurner}
+                className={`py-3 px-2 rounded-xl border font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all select-none ${
+                  burnerActive === 'heat'
+                    ? 'bg-orange-600 border-orange-400 text-white shadow-lg shadow-orange-500/40 scale-[0.98]'
+                    : 'bg-orange-950/40 border-orange-900/50 text-orange-400 hover:bg-orange-900/40'
+                }`}
+              >
+                <Flame className={`w-4 h-4 ${burnerActive === 'heat' ? 'animate-bounce' : 'animate-pulse'}`} />
+                <span>تسخين بالموقد</span>
+              </button>
+
+              <button
+                onMouseDown={() => startBurner('cool')}
+                onMouseUp={stopBurner}
+                onMouseLeave={stopBurner}
+                onTouchStart={() => startBurner('cool')}
+                onTouchEnd={stopBurner}
+                className={`py-3 px-2 rounded-xl border font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all select-none ${
+                  burnerActive === 'cool'
+                    ? 'bg-cyan-600 border-cyan-400 text-white shadow-lg shadow-cyan-500/40 scale-[0.98]'
+                    : 'bg-cyan-950/40 border-cyan-900/50 text-cyan-400 hover:bg-cyan-900/40'
+                }`}
+              >
+                <Snowflake className={`w-4 h-4 ${burnerActive === 'cool' ? 'animate-spin' : ''}`} />
+                <span>تبريد فائق</span>
+              </button>
+            </div>
+
+            {/* Container Volume Lid Slider (Boyle's Law) */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-800">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400 font-semibold">حجم الوعاء (مستوى المكبس):</span>
+                <span className="font-mono font-bold text-cyan-400">{volumeLidPercent}%</span>
+              </div>
+              <input
+                type="range"
+                min="25"
+                max="100"
+                value={volumeLidPercent}
+                onChange={(e) => setVolumeLidPercent(parseInt(e.target.value))}
+                className="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                <span>ضغط مرتفع (25%)</span>
+                <span>حجم كامل (100%)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Precision Gauges Card */}
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3">
             <h3 className="font-bold text-slate-200 text-base pb-2 border-b border-slate-800 flex items-center justify-between">
               <span>لوحة القياسات الحركية</span>
               <Gauge className="w-4 h-4 text-cyan-400" />
             </h3>
 
             {/* Temperature Gauge */}
-            <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+            <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
               <div>
                 <span className="text-[10px] text-slate-400 font-semibold block">الحرارة الفعلية</span>
                 <span className="text-2xl font-mono font-black text-orange-400 block mt-0.5">
@@ -854,46 +1282,35 @@ export const StatesOfMatter: React.FC = () => {
                   ({(actualTemp - 273.15).toFixed(1)} °C)
                 </span>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-orange-950/40 border border-orange-500/30 flex items-center justify-center text-orange-400 text-xl">
+              <div className="w-11 h-11 rounded-xl bg-orange-950/40 border border-orange-500/30 flex items-center justify-center text-orange-400 text-xl">
                 🌡️
               </div>
             </div>
 
             {/* Pressure Gauge */}
-            <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+            <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
               <div>
-                <span className="text-[10px] text-slate-400 font-semibold block">الضغط الداخلي (Atm)</span>
+                <span className="text-[10px] text-slate-400 font-semibold block">الضغط الداخلي (Manometer)</span>
                 <span className="text-2xl font-mono font-black text-cyan-400 block mt-0.5">
-                  {pressureAtm} Atm
+                  {pressureAtm.toFixed(2)} Atm
                 </span>
                 <span className="text-[10px] text-slate-500">
-                  ارتطامات الجزيئات بالجدران
+                  تصادمات الجزيئات بجدران الوعاء
                 </span>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-xl">
+              <div className="w-11 h-11 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-xl">
                 ⚡
               </div>
             </div>
 
             {/* Phase Explanation Note */}
-            <div className="bg-slate-950/40 p-3.5 rounded-xl border border-slate-800/80 space-y-1.5 text-xs">
+            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 space-y-1 text-xs">
               <h5 className="font-bold text-slate-300 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
                 <span>التفسير الفيزيائي للحالة:</span>
               </h5>
-              <p className="text-slate-300 text-xs leading-relaxed">
+              <p className="text-slate-300 text-[11px] leading-relaxed">
                 {phaseInfo.detail}
-              </p>
-            </div>
-
-            {/* Gas Laws Note */}
-            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 text-[11px] text-slate-400 leading-relaxed space-y-1">
-              <strong className="text-cyan-300 block">💡 قوانين الغازات التفاعلية:</strong>
-              <p>
-                • <strong>قانون بويل:</strong> جرّب خفض حجم الوعاء عبر المكبس، ستلاحظ ارتفاعاً فورياً في الضغط بسبب تقارب الجزيئات وزيادة معدل الارتطام.
-              </p>
-              <p>
-                • <strong>قانون غاي-لوساك:</strong> عند تسخين الغاز في وعاء مغلق، تزداد السرعة والطاقة الحركية، مما يرفع الضغط طردياً مع الحرارة.
               </p>
             </div>
           </div>
