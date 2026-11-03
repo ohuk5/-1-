@@ -26,9 +26,14 @@ export const MoleculeViewer3D: React.FC<MoleculeViewer3DProps> = ({
   const isDark = theme === 'dark';
 
   const [isRotating, setIsRotating] = useState<boolean>(true);
+  const isRotatingRef = useRef<boolean>(true);
   const [viewMode, setViewMode] = useState<'ball_and_stick' | 'space_filling'>('ball_and_stick');
   const [bondStyle, setBondStyle] = useState<'split_color' | 'classic' | 'glowing'>('split_color');
   const [zoomLevel, setZoomLevel] = useState<number>(1);
+
+  useEffect(() => {
+    isRotatingRef.current = isRotating;
+  }, [isRotating]);
 
   // Mouse / Touch interaction state
   const isDraggingRef = useRef<boolean>(false);
@@ -82,7 +87,7 @@ export const MoleculeViewer3D: React.FC<MoleculeViewer3DProps> = ({
     const animate = () => {
       animationFrameRef.current = requestAnimationFrame(animate);
 
-      if (moleculeGroupRef.current && isRotating && !isDraggingRef.current) {
+      if (moleculeGroupRef.current && isRotatingRef.current && !isDraggingRef.current) {
         moleculeGroupRef.current.rotation.y += 0.008;
         moleculeGroupRef.current.rotation.x += 0.003;
       }
@@ -147,15 +152,16 @@ export const MoleculeViewer3D: React.FC<MoleculeViewer3DProps> = ({
     let bondData: { from: number; to: number; order: 1 | 2 | 3 }[] = [];
 
     if (compound && compound.structure3D && compound.structure3D.atoms.length > 0) {
-      // Use predefined 3D coordinates with scale expansion for spacious ball-and-stick rods
-      const posScale = viewMode === 'space_filling' ? 1.0 : 1.45;
+      // In space_filling mode: atoms overlap snugly like authentic Van der Waals models
+      // In ball_and_stick mode: clear cylindrical covalent bonds connect the atoms
+      const posScale = viewMode === 'space_filling' ? 0.65 : 1.35;
       atomData = compound.structure3D.atoms.map(a => {
         const el = BUILDER_ELEMENTS_MAP.get(a.element);
         const color = a.color || el?.colorHex || '#94A3B8';
         const baseRadius = a.radius || el?.radius || 0.5;
-        // In Ball-and-Stick mode: use 36% of base radius so spherical balls do not collide
-        // In Space-Filling mode: use 115% of base radius to touch Van der Waals surfaces
-        const radius = viewMode === 'space_filling' ? baseRadius * 1.15 : baseRadius * 0.36;
+        // Ball-and-Stick: smaller balls so connecting bond rods are clear
+        // Space-Filling: large overlapping spheres (1.75x) so atoms merge together with NO gaps
+        const radius = viewMode === 'space_filling' ? baseRadius * 1.75 : baseRadius * 0.42;
         return {
           element: a.element,
           position: [
@@ -185,7 +191,8 @@ export const MoleculeViewer3D: React.FC<MoleculeViewer3DProps> = ({
       });
 
       const n = flatList.length;
-      const sphereScale = viewMode === 'space_filling' ? 1.15 : 0.36;
+      const sphereScale = viewMode === 'space_filling' ? 1.75 : 0.42;
+      const baseDist = viewMode === 'space_filling' ? 0.95 : 2.2;
       if (n === 1) {
         const el = BUILDER_ELEMENTS_MAP.get(flatList[0]);
         atomData.push({

@@ -10,6 +10,7 @@ import { MoleculeBuilder } from './components/MoleculeBuilder';
 import { StatesOfMatter } from './components/StatesOfMatter';
 import { RadioactiveDecay } from './components/RadioactiveDecay';
 import { ExperimentalLab } from './components/ExperimentalLab';
+import { PhysicsLab } from './components/PhysicsLab/PhysicsLab';
 import { GuideModal } from './components/GuideModal';
 import { CurriculumReferenceModal } from './components/CurriculumReferenceModal';
 import { ChemistryCalculatorModal } from './components/ChemistryCalculatorModal';
@@ -21,6 +22,8 @@ function MainAppContent() {
     lang,
     theme,
     t,
+    currentDomain,
+    setCurrentDomain,
     activeTab,
     setActiveTab,
     isCurriculumOpen,
@@ -40,7 +43,7 @@ function MainAppContent() {
       window.dispatchEvent(new Event('resize'));
     });
     return () => cancelAnimationFrame(id);
-  }, [activeTab]);
+  }, [activeTab, currentDomain]);
 
   const handleOpenGuide = (category?: 'basics' | 'states' | 'atoms' | 'decay' | 'missions') => {
     if (category) {
@@ -69,28 +72,40 @@ function MainAppContent() {
         ? 'bg-slate-950 text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200'
         : 'bg-slate-50 text-slate-900 selection:bg-cyan-600/20 selection:text-cyan-800'
     }`}>
-      {/* Top Header */}
+      {/* Top Header with Dual Domain Switcher & Sub-Navigation */}
       <Header onOpenGuide={() => handleOpenGuide()} />
 
       {/* Main Simulator & Lab Stage Responsive Container */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10 overflow-x-hidden">
         <div className="w-full flex flex-col md:flex-row gap-6 sm:gap-8 overflow-x-hidden">
           <div className="w-full flex-1 min-w-0 max-w-full overflow-y-auto overflow-x-hidden">
-            <div className={activeTab === 'atom-builder' ? 'block w-full' : 'hidden'}>
-              <AtomBuilder onOpenGuide={() => handleOpenGuide('atoms')} />
-            </div>
-            <div className={activeTab === 'molecule-builder' ? 'block w-full' : 'hidden'}>
-              <MoleculeBuilder onOpenGuide={(cat) => handleOpenGuide(cat || 'basics')} />
-            </div>
-            <div className={activeTab === 'states-of-matter' ? 'block w-full' : 'hidden'}>
-              <StatesOfMatter onOpenGuide={(cat) => handleOpenGuide(cat || 'states')} />
-            </div>
-            <div className={activeTab === 'radioactive-decay' ? 'block w-full' : 'hidden'}>
-              <RadioactiveDecay onOpenGuide={() => handleOpenGuide('decay')} />
-            </div>
-            <div className={activeTab === 'experiments-lab' ? 'block w-full' : 'hidden'}>
-              <ExperimentalLab />
-            </div>
+            {/* Domain 1: Chemistry Lab (Strictly 5 Modules) */}
+            {currentDomain === 'chemistry' && (
+              <>
+                <div className={activeTab === 'atom-builder' ? 'block w-full' : 'hidden'}>
+                  <AtomBuilder onOpenGuide={() => handleOpenGuide('atoms')} />
+                </div>
+                <div className={activeTab === 'molecule-builder' ? 'block w-full' : 'hidden'}>
+                  <MoleculeBuilder onOpenGuide={(cat) => handleOpenGuide(cat || 'basics')} />
+                </div>
+                <div className={activeTab === 'states-of-matter' ? 'block w-full' : 'hidden'}>
+                  <StatesOfMatter onOpenGuide={(cat) => handleOpenGuide(cat || 'states')} />
+                </div>
+                <div className={activeTab === 'radioactive-decay' ? 'block w-full' : 'hidden'}>
+                  <RadioactiveDecay onOpenGuide={() => handleOpenGuide('decay')} />
+                </div>
+                <div className={activeTab === 'experiments-lab' ? 'block w-full' : 'hidden'}>
+                  <ExperimentalLab />
+                </div>
+              </>
+            )}
+
+            {/* Domain 2: Physics Lab (Sub-stations & Physics Engine) */}
+            {currentDomain === 'physics' && (
+              <div className="block w-full">
+                <PhysicsLab onOpenGuide={() => handleOpenGuide()} />
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -101,8 +116,8 @@ function MainAppContent() {
       }`}>
         <p className="max-w-4xl mx-auto text-xs sm:text-sm leading-relaxed font-medium">
           {t(
-            'محاكي سلوك الذرات، وتكوين المركبات الكيميائية، وحالات المادة، والنشاط الإشعاعي، ومعمل التجارب الافتراضي — دعم الوضعين الليلي والنهاري، واللغتين العربية والإنجليزية، وتجارب إرشادية وحرة متقدمة.',
-            'Interactive Atomic, Molecular Compound Builder, States of Matter, Radioactive Decay Simulator & Experimental Lab — Supporting Dark/Light themes, Arabic/English bilingual modes, and Advanced Guided & Open Sandbox Experiments.'
+            'منصة العلوم التفاعلية الشاملة: مختبر الكيمياء بأقسامه الخمسة المعتمدة (الذرات، المركبات، حالات المادة، الإشعاع، والتجارب) ومختبر الفيزياء التفاعلي بمحطاته الديناميكية الحركية — مع دعم الوضعين الليلي والنهاري واللغتين العربية والإنجليزية.',
+            'Comprehensive Interactive Science Platform: Chemistry Lab with 5 curriculum sections (Atoms, Molecules, Matter States, Radiation, Experiments) and Physics Lab with dynamic kinetic stations — Supporting Dark/Light themes and Arabic/English bilingual modes.'
           )}
         </p>
       </footer>
@@ -120,6 +135,7 @@ function MainAppContent() {
         onClose={closeCurriculum}
         initialChapter={curriculumChapter}
         onLaunchExperiment={(expId) => {
+          setCurrentDomain('chemistry');
           setActiveTab('experiments-lab');
           setCurriculumExperimentToLaunch(expId);
         }}

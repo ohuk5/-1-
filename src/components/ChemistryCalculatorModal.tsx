@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Calculator,
@@ -12,15 +12,20 @@ import {
   HelpCircle,
   TrendingDown,
   TrendingUp,
-  RotateCcw
+  RotateCcw,
+  Wind,
+  Orbit,
+  Waves,
+  Sun
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp, CalculatorTabType, AppDomain } from '../context/AppContext';
 import { STANDARD_REDUCTION_POTENTIALS } from '../data/curriculumData';
+import { playLabSound } from '../utils/soundEffects';
 
 interface ChemistryCalculatorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: 'ph' | 'cell_potential' | 'henry' | 'dilution' | 'colligative' | 'molarity';
+  initialTab?: CalculatorTabType;
 }
 
 export const ChemistryCalculatorModal: React.FC<ChemistryCalculatorModalProps> = ({
@@ -28,19 +33,35 @@ export const ChemistryCalculatorModal: React.FC<ChemistryCalculatorModalProps> =
   onClose,
   initialTab = 'ph'
 }) => {
-  const { lang, theme, t } = useApp();
+  const { lang, theme, t, currentDomain, calculatorTab: contextTab, calculatorDomain: contextDomain } = useApp();
   const isDark = theme === 'dark';
   const isAr = lang === 'ar';
 
-  const [activeTab, setActiveTab] = useState<'ph' | 'cell_potential' | 'henry' | 'dilution' | 'colligative' | 'molarity'>(initialTab);
+  const [activeDomain, setActiveDomain] = useState<AppDomain>(contextDomain || currentDomain);
+  const [activeTab, setActiveTab] = useState<CalculatorTabType>(contextTab || initialTab);
 
+  useEffect(() => {
+    if (isOpen) {
+      const physicsTabs: CalculatorTabType[] = ['gas', 'coulomb', 'photoelectric', 'buoyancy', 'kinetic', 'snell'];
+      if (physicsTabs.includes(contextTab)) {
+        setActiveDomain('physics');
+      } else {
+        setActiveDomain(contextDomain || currentDomain);
+      }
+      setActiveTab(contextTab);
+    }
+  }, [isOpen, contextTab, contextDomain, currentDomain]);
+
+  // ==========================================
+  // --- CHEMISTRY STATE (1-6) ---
+  // ==========================================
   // 1. pH & pOH State
   const [phInput, setPhInput] = useState<string>('7.0');
   const [inputMode, setInputMode] = useState<'ph' | 'poh' | 'h' | 'oh'>('ph');
 
   // 2. Cell Potential State
   const [cathodeIndex, setCathodeIndex] = useState<number>(16); // Cu2+/Cu (+0.3419)
-  const [anodeIndex, setAnodeIndex] = useState<number>(28);   // Zn2+/Zn (-0.7618)
+  const [anodeIndex, setAnodeIndex] = useState<number>(28);     // Zn2+/Zn (-0.7618)
 
   // 3. Henry's Law State
   const [s1, setS1] = useState<string>('0.85');
@@ -55,847 +76,886 @@ export const ChemistryCalculatorModal: React.FC<ChemistryCalculatorModalProps> =
   // 5. Colligative Properties State
   const [solvent, setSolvent] = useState<'water' | 'benzene' | 'ethanol' | 'chloroform'>('water');
   const [molality, setMolality] = useState<string>('1.0');
-  const [vanHoff, setVanHoff] = useState<number>(1); // i
+  const [vanHoff, setVanHoff] = useState<number>(1);
 
   // 6. Molarity & Mass % State
-  const [soluteGrams, setSoluteGrams] = useState<string>('58.44'); // 1 mol NaCl
-  const [molarMass, setMolarMass] = useState<string>('58.44');
-  const [solnVolumeL, setSolnVolumeL] = useState<string>('1.0');
-  const [solnTotalGrams, setSolnTotalGrams] = useState<string>('1000');
+  const [molesSolute, setMolesSolute] = useState<string>('0.5');
+  const [volumeLiters, setVolumeLiters] = useState<string>('1.0');
+
+  // ==========================================
+  // --- PHYSICS STATE (7-12) ---
+  // ==========================================
+  // 7. Ideal Gas Law: PV = nRT
+  const [gasTarget, setGasTarget] = useState<'P' | 'V' | 'n' | 'T'>('P');
+  const [gasP, setGasP] = useState<number>(1.0); // atm
+  const [gasV, setGasV] = useState<number>(22.4); // L
+  const [gasN, setGasN] = useState<number>(1.0); // mol
+  const [gasT, setGasT] = useState<number>(273.15); // K
+  const R_GAS = 0.08206;
+
+  // 8. Coulomb's Law: F = k*|q1*q2| / r^2
+  const [q1Micro, setQ1Micro] = useState<number>(2); // µC
+  const [q2Micro, setQ2Micro] = useState<number>(-4); // µC
+  const [distanceM, setDistanceM] = useState<number>(0.5); // meters
+  const K_E = 8.98755e9;
+
+  // 9. Photoelectric: E = hc/λ, K_max = E - Φ
+  const [lambdaNm, setLambdaNm] = useState<number>(350); // nm
+  const [workPhiEV, setWorkPhiEV] = useState<number>(2.46); // Sodium (2.46 eV)
+  const HC_EV_NM = 1239.84;
+
+  // 10. Buoyancy & Archimedes: Fb = rho * V * g
+  const [fluidDensity, setFluidDensity] = useState<number>(1000); // kg/m³
+  const [displacedVolumeL, setDisplacedVolumeL] = useState<number>(5); // L
+  const [gravityG, setGravityG] = useState<number>(9.8); // m/s²
+
+  // 11. Kinetic Energy & Momentum: Ek = 0.5*m*v^2, p = m*v
+  const [massKg, setMassKg] = useState<number>(2.5); // kg
+  const [velocityMs, setVelocityMs] = useState<number>(12); // m/s
+
+  // 12. Snell's Law: n1*sin(θ1) = n2*sin(θ2)
+  const [n1, setN1] = useState<number>(1.0); // Air
+  const [theta1Deg, setTheta1Deg] = useState<number>(30); // degrees
+  const [n2, setN2] = useState<number>(1.5); // Glass
 
   if (!isOpen) return null;
 
-  // pH Calculations
-  let derivedPH = 7.0;
-  let derivedPOH = 7.0;
-  let derivedH = 1e-7;
-  let derivedOH = 1e-7;
+  // --- Chemistry Calculations ---
+  const calculatePH = () => {
+    let ph = 7;
+    const val = parseFloat(phInput) || 0;
+    if (inputMode === 'ph') ph = Math.max(0, Math.min(14, val));
+    else if (inputMode === 'poh') ph = Math.max(0, Math.min(14, 14 - val));
+    else if (inputMode === 'h') ph = val > 0 ? Math.max(0, Math.min(14, -Math.log10(val))) : 7;
+    else if (inputMode === 'oh') ph = val > 0 ? Math.max(0, Math.min(14, 14 - (-Math.log10(val)))) : 7;
 
-  try {
-    const val = parseFloat(phInput);
-    if (!isNaN(val) && val >= 0) {
-      if (inputMode === 'ph') {
-        derivedPH = Math.max(0, Math.min(14, val));
-        derivedPOH = 14 - derivedPH;
-        derivedH = Math.pow(10, -derivedPH);
-        derivedOH = Math.pow(10, -derivedPOH);
-      } else if (inputMode === 'poh') {
-        derivedPOH = Math.max(0, Math.min(14, val));
-        derivedPH = 14 - derivedPOH;
-        derivedH = Math.pow(10, -derivedPH);
-        derivedOH = Math.pow(10, -derivedPOH);
-      } else if (inputMode === 'h') {
-        derivedH = Math.max(1e-15, Math.min(1, val));
-        derivedPH = -Math.log10(derivedH);
-        derivedPOH = 14 - derivedPH;
-        derivedOH = Math.pow(10, -derivedPOH);
-      } else if (inputMode === 'oh') {
-        derivedOH = Math.max(1e-15, Math.min(1, val));
-        derivedPOH = -Math.log10(derivedOH);
-        derivedPH = 14 - derivedPOH;
-        derivedH = Math.pow(10, -derivedPH);
-      }
+    const poh = 14 - ph;
+    const hConc = Math.pow(10, -ph);
+    const ohConc = Math.pow(10, -poh);
+    let nature = t('متعادل', 'Neutral');
+    let color = 'text-emerald-400';
+    if (ph < 6.9) {
+      nature = t('حمضي', 'Acidic');
+      color = 'text-rose-400';
+    } else if (ph > 7.1) {
+      nature = t('قاعدي', 'Basic');
+      color = 'text-blue-400';
     }
-  } catch {
-    // fallback
-  }
-
-  const isAcidic = derivedPH < 6.95;
-  const isBasic = derivedPH > 7.05;
-  const isNeutral = !isAcidic && !isBasic;
-
-  // Cell Potential Calculation
-  const cathode = STANDARD_REDUCTION_POTENTIALS[cathodeIndex] || STANDARD_REDUCTION_POTENTIALS[16];
-  const anode = STANDARD_REDUCTION_POTENTIALS[anodeIndex] || STANDARD_REDUCTION_POTENTIALS[28];
-  const eCell = cathode.e0 - anode.e0;
-  const isSpontaneous = eCell > 0;
-
-  // Henry's Law Calculation (S2 = S1 * P2 / P1)
-  const numS1 = parseFloat(s1) || 0;
-  const numP1 = parseFloat(p1) || 1;
-  const numP2 = parseFloat(p2) || 0;
-  const s2 = numP1 > 0 ? (numS1 * numP2) / numP1 : 0;
-
-  // Dilution Calculation (V1 = M2 * V2 / M1)
-  const numM1 = parseFloat(m1) || 1;
-  const numM2 = parseFloat(m2) || 0;
-  const numV2 = parseFloat(v2) || 0;
-  const v1 = numM1 > 0 ? (numM2 * numV2) / numM1 : 0;
-  const waterToAdd = Math.max(0, numV2 - v1);
-
-  // Colligative Calculation
-  const solventConstants: Record<string, { kb: number; kf: number; tb0: number; tf0: number; nameAr: string; nameEn: string }> = {
-    water: { kb: 0.512, kf: 1.86, tb0: 100.0, tf0: 0.0, nameAr: 'الماء (H₂O)', nameEn: 'Water' },
-    benzene: { kb: 2.53, kf: 5.12, tb0: 80.1, tf0: 5.5, nameAr: 'البنزين (C₆H₆)', nameEn: 'Benzene' },
-    ethanol: { kb: 1.22, kf: 1.99, tb0: 78.5, tf0: -114.1, nameAr: 'الإيثانول (C₂H₅OH)', nameEn: 'Ethanol' },
-    chloroform: { kb: 3.63, kf: 4.68, tb0: 61.7, tf0: -63.5, nameAr: 'الكلوروفورم (CHCl₃)', nameEn: 'Chloroform' }
+    return { ph, poh, hConc, ohConc, nature, color };
   };
-  const activeSolv = solventConstants[solvent] || solventConstants.water;
-  const mVal = parseFloat(molality) || 0;
-  const deltaTb = activeSolv.kb * mVal * vanHoff;
-  const deltaTf = activeSolv.kf * mVal * vanHoff;
-  const finalTb = activeSolv.tb0 + deltaTb;
-  const finalTf = activeSolv.tf0 - deltaTf;
 
-  // Molarity & Mass % Calculation
-  const gSolute = parseFloat(soluteGrams) || 0;
-  const mw = parseFloat(molarMass) || 1;
-  const vL = parseFloat(solnVolumeL) || 1;
-  const gTotal = parseFloat(solnTotalGrams) || 1;
-  const calcMoles = mw > 0 ? gSolute / mw : 0;
-  const calcMolarity = vL > 0 ? calcMoles / vL : 0;
-  const calcMassPercent = gTotal > 0 ? (gSolute / gTotal) * 100 : 0;
+  const calculateCell = () => {
+    const cathode = STANDARD_REDUCTION_POTENTIALS[cathodeIndex] || STANDARD_REDUCTION_POTENTIALS[0];
+    const anode = STANDARD_REDUCTION_POTENTIALS[anodeIndex] || STANDARD_REDUCTION_POTENTIALS[1];
+    const eCell = cathode.e0 - anode.e0;
+    const isSpontaneous = eCell > 0;
+    return { cathode, anode, eCell, isSpontaneous };
+  };
+
+  const calculateHenry = () => {
+    const s1Num = parseFloat(s1) || 0;
+    const p1Num = parseFloat(p1) || 1;
+    const p2Num = parseFloat(p2) || 0;
+    const s2Num = p1Num > 0 ? (s1Num * p2Num) / p1Num : 0;
+    return { s2Num };
+  };
+
+  const calculateDilution = () => {
+    const m1Num = parseFloat(m1) || 1;
+    const m2Num = parseFloat(m2) || 0.1;
+    const v2Num = parseFloat(v2) || 100;
+    const v1Num = m1Num > 0 ? (m2Num * v2Num) / m1Num : 0;
+    const waterToAdd = Math.max(0, v2Num - v1Num);
+    return { v1Num, waterToAdd };
+  };
+
+  const calculateColligative = () => {
+    const m = parseFloat(molality) || 0;
+    const constants = {
+      water: { kb: 0.512, kf: 1.86, tb: 100.0, tf: 0.0 },
+      benzene: { kb: 2.53, kf: 5.12, tb: 80.1, tf: 5.5 },
+      ethanol: { kb: 1.22, kf: 1.99, tb: 78.4, tf: -114.1 },
+      chloroform: { kb: 3.63, kf: 4.68, tb: 61.2, tf: -63.5 }
+    };
+    const c = constants[solvent];
+    const deltaTb = c.kb * m * vanHoff;
+    const deltaTf = c.kf * m * vanHoff;
+    return {
+      newTb: c.tb + deltaTb,
+      newTf: c.tf - deltaTf,
+      deltaTb,
+      deltaTf,
+      constants: c
+    };
+  };
+
+  const calculateMolarity = () => {
+    const n = parseFloat(molesSolute) || 0;
+    const v = parseFloat(volumeLiters) || 1;
+    const molarity = v > 0 ? n / v : 0;
+    return { molarity };
+  };
+
+  // --- Physics Calculations ---
+  const calculateGasResult = () => {
+    if (gasTarget === 'P') return { val: (gasN * R_GAS * gasT) / (gasV || 1), unit: 'atm' };
+    if (gasTarget === 'V') return { val: (gasN * R_GAS * gasT) / (gasP || 1), unit: 'L' };
+    if (gasTarget === 'n') return { val: (gasP * gasV) / (R_GAS * (gasT || 1)), unit: 'mol' };
+    return { val: (gasP * gasV) / (R_GAS * (gasN || 1)), unit: 'K' };
+  };
+
+  const calculateCoulombResult = () => {
+    const q1C = q1Micro * 1e-6;
+    const q2C = q2Micro * 1e-6;
+    const f = (K_E * Math.abs(q1C * q2C)) / ((distanceM * distanceM) || 0.0001);
+    const isAttract = (q1Micro * q2Micro) < 0;
+    return { fN: f, isAttract };
+  };
+
+  const calculatePhotoelectricResult = () => {
+    const energyEV = HC_EV_NM / (lambdaNm || 1);
+    const kMaxEV = Math.max(0, energyEV - workPhiEV);
+    const thresholdNm = HC_EV_NM / (workPhiEV || 1);
+    const isEmitted = energyEV >= workPhiEV;
+    return { energyEV, kMaxEV, thresholdNm, isEmitted };
+  };
+
+  const calculateBuoyancyResult = () => {
+    const volM3 = displacedVolumeL * 0.001;
+    const forceN = fluidDensity * volM3 * gravityG;
+    const massDisplacedKg = fluidDensity * volM3;
+    return { forceN, massDisplacedKg };
+  };
+
+  const calculateKineticResult = () => {
+    const ek = 0.5 * massKg * (velocityMs * velocityMs);
+    const p = massKg * velocityMs;
+    return { ek, p };
+  };
+
+  const calculateSnellResult = () => {
+    const theta1Rad = (theta1Deg * Math.PI) / 180;
+    const sinTheta2 = (n1 * Math.sin(theta1Rad)) / (n2 || 1);
+    if (sinTheta2 > 1.0) {
+      return { tir: true, theta2Deg: 0, criticalAngleDeg: (Math.asin(n2 / n1) * 180) / Math.PI };
+    }
+    const theta2Deg = (Math.asin(sinTheta2) * 180) / Math.PI;
+    const criticalAngleDeg = n1 > n2 ? (Math.asin(n2 / n1) * 180) / Math.PI : null;
+    return { tir: false, theta2Deg, criticalAngleDeg };
+  };
+
+  const phRes = calculatePH();
+  const cellRes = calculateCell();
+  const henryRes = calculateHenry();
+  const dilRes = calculateDilution();
+  const collRes = calculateColligative();
+  const molRes = calculateMolarity();
+
+  const gasRes = calculateGasResult();
+  const coulombRes = calculateCoulombResult();
+  const photoRes = calculatePhotoelectricResult();
+  const buoyRes = calculateBuoyancyResult();
+  const kinRes = calculateKineticResult();
+  const snellRes = calculateSnellResult();
+
+  // Tab Item Lists
+  const chemTabs: { id: CalculatorTabType; labelAr: string; labelEn: string; icon: React.ReactNode }[] = [
+    { id: 'ph', labelAr: 'الرقم الهيدروجيني pH', labelEn: 'pH & pOH', icon: <Droplet className="w-4 h-4 text-cyan-400" /> },
+    { id: 'cell_potential', labelAr: 'جهد الخلية الجلفانية', labelEn: 'Cell Potential E°', icon: <Zap className="w-4 h-4 text-amber-400" /> },
+    { id: 'henry', labelAr: 'قانون هنري للغازات', labelEn: "Henry's Law", icon: <Wind className="w-4 h-4 text-purple-400" /> },
+    { id: 'dilution', labelAr: 'معادلة التخفيف', labelEn: 'Dilution (M1V1=M2V2)', icon: <FlaskConical className="w-4 h-4 text-rose-400" /> },
+    { id: 'colligative', labelAr: 'الخواص الجامعة للمحاليل', labelEn: 'Colligative Properties', icon: <Scale className="w-4 h-4 text-emerald-400" /> },
+    { id: 'molarity', labelAr: 'المولارية والتركيز', labelEn: 'Molarity (M)', icon: <Sparkles className="w-4 h-4 text-blue-400" /> }
+  ];
+
+  const physTabs: { id: CalculatorTabType; labelAr: string; labelEn: string; icon: React.ReactNode }[] = [
+    { id: 'gas', labelAr: 'الغاز المثالي (PV=nRT)', labelEn: 'Ideal Gas Law', icon: <Wind className="w-4 h-4 text-cyan-400" /> },
+    { id: 'coulomb', labelAr: 'قانون كولوم الكهروستاتيكي', labelEn: "Coulomb's Law", icon: <Zap className="w-4 h-4 text-purple-400" /> },
+    { id: 'photoelectric', labelAr: 'الظاهرة الكهروضوئية (E=hf)', labelEn: 'Photoelectric Effect', icon: <Orbit className="w-4 h-4 text-amber-400" /> },
+    { id: 'buoyancy', labelAr: 'قاعدة أرخميدس والطفو', labelEn: 'Archimedes Buoyancy', icon: <Waves className="w-4 h-4 text-teal-400" /> },
+    { id: 'kinetic', labelAr: 'الطاقة الحركية والزخم', labelEn: 'Kinetic & Momentum', icon: <Sparkles className="w-4 h-4 text-rose-400" /> },
+    { id: 'snell', labelAr: 'قانون سنيل والانكسار', labelEn: "Snell's Law", icon: <Sun className="w-4 h-4 text-indigo-400" /> }
+  ];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-5 overflow-y-auto"
-      dir={isAr ? 'rtl' : 'ltr'}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 backdrop-blur-md bg-slate-950/80 animate-fadeIn">
       <div
-        className={`border rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[92vh] ${
-          isAr ? 'text-right' : 'text-left'
-        } ${isDark ? 'bg-slate-900 border-slate-700/80 text-slate-100' : 'bg-white border-slate-200 text-slate-800'}`}
+        className={`w-full max-w-4xl max-h-[90vh] rounded-3xl border shadow-2xl flex flex-col overflow-hidden transition-all ${
+          isDark
+            ? 'bg-slate-900 border-slate-800 text-slate-100 shadow-[0_25px_60px_rgba(0,0,0,0.8)]'
+            : 'bg-white border-slate-200 text-slate-900 shadow-2xl'
+        }`}
       >
-        {/* Top Header */}
-        <div
-          className={`p-4 sm:p-5 border-b flex items-center justify-between gap-3 ${
-            isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
-          }`}
-        >
+        {/* Modal Header */}
+        <div className={`p-4 sm:p-6 border-b flex items-center justify-between ${
+          isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-100 bg-slate-50'
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-cyan-950 border border-cyan-500/50 flex items-center justify-center text-cyan-400 shrink-0 shadow-sm shadow-cyan-500/20">
-              <Calculator className="w-5 h-5" />
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-md ${
+              activeDomain === 'chemistry' ? 'bg-cyan-600' : 'bg-gradient-to-tr from-purple-600 to-amber-600'
+            }`}>
+              <Calculator className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-black flex items-center gap-2">
-                <span>{t('حاسبة القوانين والمعادلات الكيميائية', 'Chemical Laws & Formulas Calculator')}</span>
-                <span className="text-[11px] font-bold bg-cyan-500/20 text-cyan-400 px-2.5 py-0.5 rounded-full border border-cyan-500/30">
-                  {t('منهج كيمياء 3 المعتمد', 'Chemistry 3 Standards')}
-                </span>
+              <h2 className="text-base sm:text-lg font-black tracking-tight flex items-center gap-2">
+                <span>{t('حاسبة القوانين والمسائل العلمية الشاملة', 'Comprehensive Scientific Laws Calculator')}</span>
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {t(
-                  'حساب فوري مباشر لقوانين pH، جهود الخلايا الجلفانية، التخفيف، قانون هنري، والخواص الجامعة',
-                  'Instant computation of pH, cell potentials, dilution, Henry’s law, and colligative properties'
-                )}
+              <p className="text-xs text-slate-400">
+                {t('حل المسائل المنهجية بدقة مع إيضاح الوحدات وخطوات التعويض الرياضي', 'Exact curriculum formula solver with step-by-step substitution and units')}
               </p>
             </div>
           </div>
+
           <button
+            type="button"
             onClick={onClose}
-            className={`p-2 rounded-xl transition-colors shrink-0 ${
-              isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-600 hover:text-slate-900'
+            className={`p-2 rounded-xl border transition-colors ${
+              isDark ? 'border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white' : 'border-slate-200 hover:bg-slate-100 text-slate-500 hover:text-slate-900'
             }`}
-            title={t('إغلاق الحاسبة', 'Close Calculator')}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div
-          className={`px-4 py-2.5 border-b flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs font-bold ${
-            isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-slate-100 border-slate-200'
-          }`}
-        >
+        {/* Domain Switcher Pill: Chemistry vs Physics */}
+        <div className={`px-4 sm:px-6 py-2.5 border-b flex items-center justify-center gap-3 ${
+          isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-slate-100/60 border-slate-200'
+        }`}>
           <button
-            onClick={() => setActiveTab('ph')}
-            className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'ph'
-                ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
+            type="button"
+            onClick={() => {
+              setActiveDomain('chemistry');
+              setActiveTab('ph');
+              playLabSound('click');
+            }}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all border ${
+              activeDomain === 'chemistry'
+                ? 'bg-gradient-to-r from-cyan-600 to-blue-600 border-cyan-400 text-white shadow-md'
                 : isDark
-                ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                ? 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white'
+                : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Droplet className="w-4 h-4" />
-            <span>{t('الأس الهيدروجيني (pH / pOH)', 'pH & pOH Calculator')}</span>
+            <FlaskConical className="w-4 h-4 text-cyan-300" />
+            <span>{t('🧪 قوانين الكيمياء (6 قوانين)', '🧪 Chemistry Laws (6 Formulas)')}</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('cell_potential')}
-            className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'cell_potential'
-                ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
+            type="button"
+            onClick={() => {
+              setActiveDomain('physics');
+              setActiveTab('gas');
+              playLabSound('click');
+            }}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all border ${
+              activeDomain === 'physics'
+                ? 'bg-gradient-to-r from-purple-600 to-amber-600 border-purple-400 text-white shadow-md'
                 : isDark
-                ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                ? 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white'
+                : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Zap className="w-4 h-4" />
-            <span>{t('جهد الخلية الجلفانية (E°cell)', 'Galvanic E°cell')}</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('dilution')}
-            className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'dilution'
-                ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
-                : isDark
-                ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            <FlaskConical className="w-4 h-4" />
-            <span>{t('التخفيف (M₁V₁ = M₂V₂)', 'Dilution Law')}</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('henry')}
-            className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'henry'
-                ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
-                : isDark
-                ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            <TrendingUp className="w-4 h-4" />
-            <span>{t('قانون هنري (S₁/P₁ = S₂/P₂)', 'Henry’s Law')}</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('colligative')}
-            className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'colligative'
-                ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
-                : isDark
-                ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            <Scale className="w-4 h-4" />
-            <span>{t('الخواص الجامعة (الغليان والتجمد)', 'Colligative ΔTb & ΔTf')}</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('molarity')}
-            className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'molarity'
-                ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
-                : isDark
-                ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            <Scale className="w-4 h-4" />
-            <span>{t('المولارية والنسبة المئوية', 'Molarity & Mass %')}</span>
+            <Orbit className="w-4 h-4 text-amber-300" />
+            <span>{t('⚡ قوانين الفيزياء (6 قوانين)', '⚡ Physics Laws (6 Formulas)')}</span>
           </button>
         </div>
 
-        {/* Tab Body */}
+        {/* Horizontal Formula Ribbon */}
+        <div className={`p-2.5 border-b flex items-center gap-1.5 overflow-x-auto scrollbar-none ${
+          isDark ? 'bg-slate-950/20 border-slate-800/80' : 'bg-slate-50 border-slate-200/80'
+        }`}>
+          {(activeDomain === 'chemistry' ? chemTabs : physTabs).map(tabItem => {
+            const isSelected = activeTab === tabItem.id;
+            return (
+              <button
+                key={tabItem.id}
+                type="button"
+                onClick={() => {
+                  setActiveTab(tabItem.id);
+                  playLabSound('click');
+                }}
+                className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 transition-all border ${
+                  isSelected
+                    ? activeDomain === 'chemistry'
+                      ? 'bg-cyan-600 border-cyan-400 text-white shadow-sm'
+                      : 'bg-purple-600 border-purple-400 text-white shadow-sm'
+                    : isDark
+                    ? 'bg-slate-800/50 border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-800'
+                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <span>{tabItem.icon}</span>
+                <span>{isAr ? tabItem.labelAr : tabItem.labelEn}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Active Law Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-          {/* TAB 1: pH / pOH */}
-          {activeTab === 'ph' && (
+          {/* ============================================================== */}
+          {/* CHEMISTRY 1: pH & pOH */}
+          {/* ============================================================== */}
+          {activeDomain === 'chemistry' && activeTab === 'ph' && (
             <div className="space-y-6">
-              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                  <h3 className="font-black text-sm sm:text-base text-cyan-400 flex items-center gap-2">
-                    <Droplet className="w-4 h-4" />
-                    <span>{t('القانون الرياضي: حسابات الأحماض والقواعد', 'Mathematical Law: Acid-Base Calculations')}</span>
-                  </h3>
-                  <div className="flex items-center gap-1 p-1 bg-slate-800/80 rounded-xl text-xs font-semibold">
-                    <button
-                      onClick={() => setInputMode('ph')}
-                      className={`px-2.5 py-1 rounded-lg transition-colors ${inputMode === 'ph' ? 'bg-cyan-500 text-slate-950' : 'text-slate-300'}`}
-                    >
-                      pH
-                    </button>
-                    <button
-                      onClick={() => setInputMode('poh')}
-                      className={`px-2.5 py-1 rounded-lg transition-colors ${inputMode === 'poh' ? 'bg-cyan-500 text-slate-950' : 'text-slate-300'}`}
-                    >
-                      pOH
-                    </button>
-                    <button
-                      onClick={() => { setInputMode('h'); setPhInput('1e-7'); }}
-                      className={`px-2.5 py-1 rounded-lg transition-colors ${inputMode === 'h' ? 'bg-cyan-500 text-slate-950' : 'text-slate-300'}`}
-                    >
-                      [H⁺]
-                    </button>
-                    <button
-                      onClick={() => { setInputMode('oh'); setPhInput('1e-7'); }}
-                      className={`px-2.5 py-1 rounded-lg transition-colors ${inputMode === 'oh' ? 'bg-cyan-500 text-slate-950' : 'text-slate-300'}`}
-                    >
-                      [OH⁻]
-                    </button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                  <label className="text-xs font-bold block mb-2 text-slate-300">
+                    {t('المتغير المعطى ونمط الإدخال:', 'Given Input Variable:')}
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    {[
+                      { id: 'ph', label: 'الرقم الهيدروجيني (pH)' },
+                      { id: 'poh', label: 'الرقم الهيدروكسيدي (pOH)' },
+                      { id: 'h', label: '[H⁺] mol/L' },
+                      { id: 'oh', label: '[OH⁻] mol/L' }
+                    ].map(mode => (
+                      <button
+                        key={mode.id}
+                        type="button"
+                        onClick={() => setInputMode(mode.id as any)}
+                        className={`p-2 rounded-xl text-xs font-bold border transition-all ${
+                          inputMode === mode.id
+                            ? 'bg-cyan-600 border-cyan-400 text-white'
+                            : isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
                   </div>
+                  <input
+                    type="number"
+                    step="any"
+                    value={phInput}
+                    onChange={e => setPhInput(e.target.value)}
+                    className={`w-full p-3 rounded-xl border text-sm font-mono font-bold ${
+                      isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Result Card */}
+                <div className={`p-5 rounded-2xl border flex flex-col justify-between ${
+                  isDark ? 'bg-slate-950/80 border-cyan-500/30' : 'bg-cyan-50/50 border-cyan-200'
+                }`}>
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1.5">
-                      {inputMode === 'ph' && t('أدخل قيمة الرقم الهيدروجيني (0 - 14):', 'Enter pH value (0 - 14):')}
-                      {inputMode === 'poh' && t('أدخل قيمة الرقم الهيدروكسيدي (0 - 14):', 'Enter pOH value (0 - 14):')}
-                      {inputMode === 'h' && t('أدخل تركيز أيون الهيدروجين [H⁺] بالمولارية (mol/L):', 'Enter [H+] concentration (mol/L):')}
-                      {inputMode === 'oh' && t('أدخل تركيز أيون الهيدروكسيد [OH⁻] بالمولارية (mol/L):', 'Enter [OH-] concentration (mol/L):')}
-                    </label>
-                    <input
-                      type="text"
-                      value={phInput}
-                      onChange={(e) => setPhInput(e.target.value)}
-                      className={`w-full px-4 py-2.5 rounded-xl border font-mono text-base font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                    <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-400">
-                      <span>{t('أمثلة سريعة من الكتاب:', 'Quick textbook presets:')}</span>
-                      <button onClick={() => { setInputMode('ph'); setPhInput('1.0'); }} className="text-cyan-400 hover:underline">HCl (1.0)</button>
-                      <span>·</span>
-                      <button onClick={() => { setInputMode('ph'); setPhInput('7.0'); }} className="text-cyan-400 hover:underline">{t('ماء نقي (7.0)', 'Water (7.0)')}</button>
-                      <span>·</span>
-                      <button onClick={() => { setInputMode('ph'); setPhInput('13.0'); }} className="text-cyan-400 hover:underline">NaOH (13.0)</button>
-                      <span>·</span>
-                      <button onClick={() => { setInputMode('ph'); setPhInput('7.4'); }} className="text-cyan-400 hover:underline">{t('دم سليم (7.4)', 'Blood (7.4)')}</button>
+                    <span className="text-xs font-bold text-slate-400 block mb-2">{t('النتائج المحسوبة:', 'Calculated Output:')}</span>
+                    <div className="grid grid-cols-2 gap-3 font-mono">
+                      <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block">pH:</span>
+                        <span className="text-xl font-black text-cyan-400">{phRes.ph.toFixed(2)}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block">pOH:</span>
+                        <span className="text-xl font-black text-purple-400">{phRes.poh.toFixed(2)}</span>
+                      </div>
                     </div>
                   </div>
-
-                  {/* Classification Badge */}
-                  <div className={`p-4 rounded-xl border flex flex-col justify-center ${
-                    isAcidic
-                      ? 'bg-rose-950/30 border-rose-500/40 text-rose-300'
-                      : isBasic
-                      ? 'bg-blue-950/30 border-blue-500/40 text-blue-300'
-                      : 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
-                  }`}>
-                    <div className="text-xs font-bold uppercase tracking-wider mb-1">
-                      {t('طبيعة المحلول الكيميائي', 'Chemical Solution Nature')}
-                    </div>
-                    <div className="text-xl font-black flex items-center gap-2">
-                      {isAcidic && <span>🧪 {t('محلول حمضي ([H⁺] > [OH⁻])', 'Acidic Solution ([H+] > [OH-])')}</span>}
-                      {isBasic && <span>🧼 {t('محلول قاعدي/قلوي ([OH⁻] > [H⁺])', 'Basic/Alkaline Solution ([OH-] > [H+])')}</span>}
-                      {isNeutral && <span>⚖️ {t('محلول متعادل كيميائياً ([H⁺] = [OH⁻])', 'Neutral Solution ([H+] = [OH-])')}</span>}
-                    </div>
-                    <div className="text-xs mt-1.5 opacity-85">
-                      {isAcidic && t('يحمر ورقة تباع الشمس، وطعمه لاذع، موصل جيد إذا كان حمضاً قوياً.', 'Turns litmus red, tastes sour, conducts well if strong.')}
-                      {isBasic && t('يزرق ورقة تباع الشمس، ملمسه زلق كالصابون، يلون الفينولفثالين بالوردي.', 'Turns litmus blue, slippery feel, turns phenolphthalein pink.')}
-                      {isNeutral && t('متعادل مثل الماء المقطر ومحلول NaCl، لا يغير لون تباع الشمس (أخضر مع البروموثيمول).', 'Neutral like pure water and NaCl, green with bromothymol blue.')}
-                    </div>
+                  <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+                    <span className="text-slate-400">{t('طبيعة المحلول:', 'Solution Nature:')}</span>
+                    <span className={`font-bold ${phRes.color}`}>{phRes.nature}</span>
                   </div>
                 </div>
-              </div>
-
-              {/* 4 Cards Results */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 font-mono">
-                <div className={`p-3 sm:p-4 rounded-2xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="text-xs text-slate-400 font-sans">{t('الرقم الهيدروجيني', 'pH Value')}</div>
-                  <div className="text-xl sm:text-2xl font-black text-cyan-400 mt-1">{derivedPH.toFixed(2)}</div>
-                  <div className="text-[10px] text-slate-500 font-sans mt-1">pH = -log[H⁺]</div>
-                </div>
-
-                <div className={`p-3 sm:p-4 rounded-2xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="text-xs text-slate-400 font-sans">{t('الرقم الهيدروكسيدي', 'pOH Value')}</div>
-                  <div className="text-xl sm:text-2xl font-black text-amber-400 mt-1">{derivedPOH.toFixed(2)}</div>
-                  <div className="text-[10px] text-slate-500 font-sans mt-1">pOH = 14.00 - pH</div>
-                </div>
-
-                <div className={`p-3 sm:p-4 rounded-2xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="text-xs text-slate-400 font-sans">{t('تركيز أيون [H⁺]', '[H+] Concentration')}</div>
-                  <div className="text-sm sm:text-base font-black text-rose-400 mt-1 truncate">{derivedH.toExponential(2)} M</div>
-                  <div className="text-[10px] text-slate-500 font-sans mt-1">[H⁺] = 10⁻ᵖᴴ</div>
-                </div>
-
-                <div className={`p-3 sm:p-4 rounded-2xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="text-xs text-slate-400 font-sans">{t('تركيز أيون [OH⁻]', '[OH-] Concentration')}</div>
-                  <div className="text-sm sm:text-base font-black text-emerald-400 mt-1 truncate">{derivedOH.toExponential(2)} M</div>
-                  <div className="text-[10px] text-slate-500 font-sans mt-1">[OH⁻] = Kw / [H⁺]</div>
-                </div>
-              </div>
-
-              {/* Chemical Law Card */}
-              <div className={`p-4 rounded-2xl border text-xs leading-relaxed ${isDark ? 'bg-slate-950/40 border-slate-800 text-slate-300' : 'bg-cyan-50/50 border-cyan-200 text-slate-700'}`}>
-                <div className="font-bold text-cyan-400 mb-1 flex items-center gap-1.5 font-sans">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{t('القاعدة المعتمدة من الفصل الثاني (صفحة 74-75):', 'Official Rule from Chapter 2 (Pages 74-75):')}</span>
-                </div>
-                <p>
-                  {t(
-                    'حاصل ضرب تركيز أيوني الهيدروجين والهيدروكسيل في أي محلول مائي يساوي دائماً ثابت تأين الماء Kw = [H⁺][OH⁻] = 1.0 × 10⁻¹⁴ عند 298 K (25°C). لذا كلما زاد [H⁺] نقص [OH⁻] تلقائياً للحفاظ على الاتزان الديناميكي وفق مبدأ لوتشاتلييه.',
-                    'The product of [H+] and [OH-] in any aqueous solution always equals Kw = 1.0 × 10⁻¹⁴ at 298 K. As [H+] rises, [OH-] decreases to maintain dynamic equilibrium according to Le Chatelier’s principle.'
-                  )}
-                </p>
               </div>
             </div>
           )}
 
-          {/* TAB 2: Galvanic Cell Potential E°cell */}
-          {activeTab === 'cell_potential' && (
+          {/* ============================================================== */}
+          {/* CHEMISTRY 2: Cell Potential */}
+          {/* ============================================================== */}
+          {activeDomain === 'chemistry' && activeTab === 'cell_potential' && (
             <div className="space-y-6">
-              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                <h3 className="font-black text-sm sm:text-base text-cyan-400 mb-3 flex items-center gap-2">
-                  <Zap className="w-4 h-4" />
-                  <span>{t('حساب جهد الخلية الجلفانية: E°cell = E°cathode - E°anode', 'Galvanic Cell EMF: E°cell = E°cathode - E°anode')}</span>
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Cathode Selection */}
-                  <div>
-                    <label className="block text-xs font-bold text-emerald-400 mb-1.5 flex items-center gap-1.5">
-                      <span>🔵 {t('نصف تفاعل الكاثود (المهبط - حيث يحدث الاختزال):', 'Cathode Half-Reaction (Reduction):')}</span>
-                    </label>
-                    <select
-                      value={cathodeIndex}
-                      onChange={(e) => setCathodeIndex(Number(e.target.value))}
-                      className={`w-full px-3 py-2.5 rounded-xl border text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    >
-                      {STANDARD_REDUCTION_POTENTIALS.map((p, idx) => (
-                        <option key={idx} value={idx}>
-                          {p.species}: {p.halfReaction} (E° = {p.e0 > 0 ? `+${p.e0.toFixed(4)}` : p.e0.toFixed(4)} V)
-                        </option>
-                      ))}
-                    </select>
-                    <div className="text-[11px] text-emerald-400/80 mt-1 font-mono">
-                      E°cathode = {cathode.e0 > 0 ? `+${cathode.e0.toFixed(4)}` : cathode.e0.toFixed(4)} V
-                    </div>
-                  </div>
-
-                  {/* Anode Selection */}
-                  <div>
-                    <label className="block text-xs font-bold text-amber-400 mb-1.5 flex items-center gap-1.5">
-                      <span>🟠 {t('نصف تفاعل الأنود (المصعد - حيث تحدث الأكسدة):', 'Anode Half-Reaction (Oxidation):')}</span>
-                    </label>
-                    <select
-                      value={anodeIndex}
-                      onChange={(e) => setAnodeIndex(Number(e.target.value))}
-                      className={`w-full px-3 py-2.5 rounded-xl border text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    >
-                      {STANDARD_REDUCTION_POTENTIALS.map((p, idx) => (
-                        <option key={idx} value={idx}>
-                          {p.species}: {p.halfReaction} (E° = {p.e0 > 0 ? `+${p.e0.toFixed(4)}` : p.e0.toFixed(4)} V)
-                        </option>
-                      ))}
-                    </select>
-                    <div className="text-[11px] text-amber-400/80 mt-1 font-mono">
-                      E°anode = {anode.e0 > 0 ? `+${anode.e0.toFixed(4)}` : anode.e0.toFixed(4)} V
-                    </div>
-                  </div>
-                </div>
-
-                {/* Swap electrodes button */}
-                <div className="mt-3 flex justify-end">
-                  <button
-                    onClick={() => {
-                      const temp = cathodeIndex;
-                      setCathodeIndex(anodeIndex);
-                      setAnodeIndex(temp);
-                    }}
-                    className={`px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-colors ${
-                      isDark ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' : 'bg-slate-200 hover:bg-slate-300 border-slate-300 text-slate-700'
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                  <label className="text-xs font-bold block mb-2 text-emerald-400">
+                    {t('قطب المهبط (الكاثود - يحدث عنده اختزال):', 'Cathode (Reduction):')}
+                  </label>
+                  <select
+                    value={cathodeIndex}
+                    onChange={e => setCathodeIndex(Number(e.target.value))}
+                    className={`w-full p-2.5 rounded-xl border text-xs font-mono mb-4 ${
+                      isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
                     }`}
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>{t('تبديل القطبين (عكس اتجاه التيار)', 'Swap Electrodes')}</span>
-                  </button>
-                </div>
-              </div>
+                    {STANDARD_REDUCTION_POTENTIALS.map((p, idx) => (
+                      <option key={idx} value={idx}>{p.halfReaction} ({p.e0 > 0 ? `+${p.e0}` : p.e0} V)</option>
+                    ))}
+                  </select>
 
-              {/* Potential Result Card */}
-              <div className={`p-5 rounded-3xl border ${
-                isSpontaneous
-                  ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
-                  : 'bg-rose-950/40 border-rose-500/50 text-rose-200'
-              }`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <label className="text-xs font-bold block mb-2 text-rose-400">
+                    {t('قطب المصعد (الأنود - يحدث عنده أكسدة):', 'Anode (Oxidation):')}
+                  </label>
+                  <select
+                    value={anodeIndex}
+                    onChange={e => setAnodeIndex(Number(e.target.value))}
+                    className={`w-full p-2.5 rounded-xl border text-xs font-mono ${
+                      isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  >
+                    {STANDARD_REDUCTION_POTENTIALS.map((p, idx) => (
+                      <option key={idx} value={idx}>{p.halfReaction} ({p.e0 > 0 ? `+${p.e0}` : p.e0} V)</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={`p-5 rounded-2xl border flex flex-col justify-between ${
+                  isDark ? 'bg-slate-950/80 border-amber-500/30' : 'bg-amber-50/50 border-amber-200'
+                }`}>
                   <div>
-                    <div className="text-xs uppercase tracking-wider font-bold opacity-80">
-                      {t('جهد الخلية القياسي المحسوب (E°cell)', 'Calculated Standard Cell Potential')}
+                    <span className="text-xs font-bold text-slate-400 block mb-2">{t('معادلة جهد الخلية القياسي:', 'Standard Cell EMF Formula:')}</span>
+                    <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-center font-mono text-xs text-amber-300 mb-3">
+                      E°cell = E°cathode - E°anode
                     </div>
-                    <div className="text-3xl sm:text-4xl font-black font-mono mt-1">
-                      {eCell > 0 ? `+${eCell.toFixed(4)}` : eCell.toFixed(4)} V
-                    </div>
-                    <div className="text-xs font-mono mt-2">
-                      E°cell = ({cathode.e0 > 0 ? `+${cathode.e0.toFixed(3)}` : cathode.e0.toFixed(3)}) - ({anode.e0 > 0 ? `+${anode.e0.toFixed(3)}` : anode.e0.toFixed(3)}) = {eCell.toFixed(4)} V
+                    <div className="text-center font-mono py-2">
+                      <span className="text-xs text-slate-500 block mb-1">E°cell:</span>
+                      <span className={`text-3xl font-black ${cellRes.isSpontaneous ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {cellRes.eCell > 0 ? `+${cellRes.eCell.toFixed(4)}` : cellRes.eCell.toFixed(4)} V
+                      </span>
                     </div>
                   </div>
-
-                  <div className="sm:text-left">
-                    <span className={`inline-block px-3 py-1.5 rounded-xl font-black text-xs border ${
-                      isSpontaneous
-                        ? 'bg-emerald-500 text-slate-950 border-emerald-400'
-                        : 'bg-rose-500 text-white border-rose-400'
-                    }`}>
-                      {isSpontaneous ? t('⚡ تفاعل تلقائي (خلية جلفانية منتجة للطاقة)', '⚡ Spontaneous (Galvanic Cell)') : t('🔋 تفاعل غير تلقائي (يتطلب تحليلاً كهربائياً)', '🔋 Non-spontaneous (Electrolytic)')}
+                  <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+                    <span className="text-slate-400">{t('التلقائية (Spontaneity):', 'Reaction Spontaneity:')}</span>
+                    <span className={`font-bold ${cellRes.isSpontaneous ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {cellRes.isSpontaneous ? t('تلقائي (خلية جلفانية)', 'Spontaneous (Galvanic)') : t('غير تلقائي (خلية تحليل كهربائي)', 'Non-spontaneous (Electrolytic)')}
                     </span>
-                    <p className="text-xs mt-2 opacity-90 max-w-sm">
-                      {isSpontaneous
-                        ? t('تتدفق الإلكترونات تلقائياً من الأنود إلى الكاثود عبر السلك، وتولد تياراً كهربائياً يشغل المحركات والمصابيح.', 'Electrons flow spontaneously from anode to cathode, delivering electric power.')
-                        : t('التفاعل العكسي هو التلقائي؛ لكي يحدث هذا التفاعل يجب تزويده بطاقة كهربائية خارجية أكبر من جهد الخلية.', 'Reverse reaction is spontaneous; this direction requires external electrical power.')}
-                    </p>
                   </div>
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* Textbook Reference note */}
-              <div className={`p-4 rounded-2xl border text-xs leading-relaxed ${isDark ? 'bg-slate-950/40 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
-                <div className="font-bold text-cyan-400 mb-1 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{t('من أمثلة كتاب كيمياء 3 الشهيرة (مثال 4-1 صفحة 140):', 'From Chemistry 3 Textbook Example 4-1 (Page 140):')}</span>
+          {/* ============================================================== */}
+          {/* CHEMISTRY 3: Henry's Law */}
+          {/* ============================================================== */}
+          {activeDomain === 'chemistry' && activeTab === 'henry' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">الذائبية الابتدائية S1 (g/L):</label>
+                  <input type="number" step="any" value={s1} onChange={e => setS1(e.target.value)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
                 </div>
-                <p>
-                  {t(
-                    'خلية دانيال الجلفانية (خارصين/نحاس): الكاثود هو النحاس Cu²⁺/Cu (+0.342V) والأنود هو الخارصين Zn²⁺/Zn (-0.762V)، ويكون جهد الخلية القياسي: E°cell = +0.342 - (-0.762) = +1.104 V، مما يجعله تفاعلاً تلقائياً ممتازاً لإنتاج الطاقة.',
-                    'Daniel Cell (Zn/Cu): Cathode is Cu²⁺/Cu (+0.342V), Anode is Zn²⁺/Zn (-0.762V), resulting in E°cell = +0.342 - (-0.762) = +1.104 V.'
-                  )}
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">الضغط الابتدائي P1 (atm):</label>
+                  <input type="number" step="any" value={p1} onChange={e => setP1(e.target.value)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">الضغط الجديد P2 (atm):</label>
+                  <input type="number" step="any" value={p2} onChange={e => setP2(e.target.value)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+              </div>
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-purple-500/30' : 'bg-purple-50/50 border-purple-200'}`}>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 block mb-2">قانون هنري: S1 / P1 = S2 / P2</span>
+                  <div className="text-center font-mono py-4">
+                    <span className="text-xs text-slate-500 block mb-1">الذائبية الجديدة S2:</span>
+                    <span className="text-3xl font-black text-purple-400">{henryRes.s2Num.toFixed(4)} g/L</span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  تتناسب ذائبية الغاز في سائل طردياً مع الضغط الواقع على سطحه عند ثبوت درجة الحرارة (مثل غاز المشروبات الغازية).
                 </p>
               </div>
             </div>
           )}
 
-          {/* TAB 3: Dilution Law M1*V1 = M2*V2 */}
-          {activeTab === 'dilution' && (
-            <div className="space-y-6">
-              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                <h3 className="font-black text-sm sm:text-base text-cyan-400 mb-3 flex items-center gap-2">
-                  <FlaskConical className="w-4 h-4" />
-                  <span>{t('معادلة التخفيف للمحاليل القياسية: M₁V₁ = M₂V₂', 'Standard Solution Dilution: M₁V₁ = M₂V₂')}</span>
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">
-                      {t('تركيز المحلول القياسي المركز (M₁):', 'Stock Molarity (M₁):')}
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={m1}
-                      onChange={(e) => setM1(e.target.value)}
-                      className={`w-full px-4 py-2 rounded-xl border font-mono text-sm font-bold focus:ring-2 focus:ring-cyan-500 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                    <span className="text-[10px] text-slate-500">M (mol/L)</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">
-                      {t('التركيز المخفف المطلوب (M₂):', 'Target Dilute Molarity (M₂):')}
-                    </label>
-                    <input
-                      type="number"
-                      step="0.05"
-                      value={m2}
-                      onChange={(e) => setM2(e.target.value)}
-                      className={`w-full px-4 py-2 rounded-xl border font-mono text-sm font-bold focus:ring-2 focus:ring-cyan-500 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                    <span className="text-[10px] text-slate-500">M (mol/L)</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">
-                      {t('الحجم النهائي المطلوب (V₂):', 'Target Final Volume (V₂):')}
-                    </label>
-                    <input
-                      type="number"
-                      step="10"
-                      value={v2}
-                      onChange={(e) => setV2(e.target.value)}
-                      className={`w-full px-4 py-2 rounded-xl border font-mono text-sm font-bold focus:ring-2 focus:ring-cyan-500 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                    <span className="text-[10px] text-slate-500">mL (مللتر)</span>
-                  </div>
+          {/* ============================================================== */}
+          {/* CHEMISTRY 4: Dilution */}
+          {/* ============================================================== */}
+          {activeDomain === 'chemistry' && activeTab === 'dilution' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">تركيز المحلول القياسي المركز M1 (mol/L):</label>
+                  <input type="number" step="any" value={m1} onChange={e => setM1(e.target.value)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">التركيز المخفف المطلوب M2 (mol/L):</label>
+                  <input type="number" step="any" value={m2} onChange={e => setM2(e.target.value)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">الحجم النهائي المطلوب V2 (mL):</label>
+                  <input type="number" step="any" value={v2} onChange={e => setV2(e.target.value)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
                 </div>
               </div>
-
-              {/* Dilution Result */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className={`p-4 rounded-2xl border ${isDark ? 'bg-cyan-950/30 border-cyan-500/40' : 'bg-cyan-50 border-cyan-200'}`}>
-                  <div className="text-xs text-slate-400 font-bold">{t('الحجم اللازم أخذه من المحلول المركز (V₁)', 'Volume to take from stock (V₁)')}</div>
-                  <div className="text-3xl font-black font-mono text-cyan-400 mt-1">{v1.toFixed(2)} mL</div>
-                  <div className="text-xs text-slate-400 mt-2 font-mono">
-                    V₁ = (M₂ × V₂) / M₁ = ({numM2} × {numV2}) / {numM1}
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-rose-500/30' : 'bg-rose-50/50 border-rose-200'}`}>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 block mb-2">معادلة التخفيف: M1 · V1 = M2 · V2</span>
+                  <div className="text-center font-mono py-3">
+                    <span className="text-xs text-slate-500 block mb-1">الحجم المطلوب سحبه V1:</span>
+                    <span className="text-3xl font-black text-rose-400">{dilRes.v1Num.toFixed(2)} mL</span>
                   </div>
                 </div>
-
-                <div className={`p-4 rounded-2xl border ${isDark ? 'bg-blue-950/30 border-blue-500/40' : 'bg-blue-50 border-blue-200'}`}>
-                  <div className="text-xs text-slate-400 font-bold">{t('حجم الماء المقطر المضاف للتخفيف', 'Volume of distilled water to add')}</div>
-                  <div className="text-3xl font-black font-mono text-blue-400 mt-1">{waterToAdd.toFixed(2)} mL</div>
-                  <div className="text-xs text-slate-400 mt-2 font-mono">
-                    V_water = V₂ - V₁ = {numV2} - {v1.toFixed(2)}
-                  </div>
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+                  <span className="text-slate-400 block mb-1">خطوات التحضير:</span>
+                  <span className="text-slate-200">اسحب {dilRes.v1Num.toFixed(2)} mL من المحلول المركز وأضف إليها {dilRes.waterToAdd.toFixed(2)} mL ماء مقطر.</span>
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* Practical Guidance */}
-              <div className={`p-4 rounded-2xl border text-xs leading-relaxed ${isDark ? 'bg-slate-950/40 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
-                <div className="font-bold text-cyan-400 mb-1 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{t('طريقة العمل المخبرية المعتمدة (صفحة 23-25):', 'Official Laboratory Procedure (Pages 23-25):')}</span>
+          {/* ============================================================== */}
+          {/* CHEMISTRY 5: Colligative */}
+          {/* ============================================================== */}
+          {activeDomain === 'chemistry' && activeTab === 'colligative' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">نوع المذيب:</label>
+                  <select value={solvent} onChange={e => setSolvent(e.target.value as any)} className={`w-full p-2.5 rounded-xl border text-xs font-mono ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`}>
+                    <option value="water">ماء (Water - Kb=0.512, Kf=1.86)</option>
+                    <option value="benzene">بنزين (Benzene - Kb=2.53, Kf=5.12)</option>
+                    <option value="ethanol">إيثانول (Ethanol - Kb=1.22, Kf=1.99)</option>
+                    <option value="chloroform">كلوروفورم (Chloroform - Kb=3.63, Kf=4.68)</option>
+                  </select>
                 </div>
-                <p>
-                  {t(
-                    'لقياس الحجم بدقة، قس V₁ بالمخبار المدرج أو الماصة، ضعه في دورق حجمي سعته V₂، ثم أضف الماء المقطر تدريجياً حتى تصل حافة التقعر للعلامة المحددة على عنق الدورق الحجمي ورج المحلول بلطف ليصبح متجانساً.',
-                    'Measure V₁ using graduated cylinder/pipette, transfer to volumetric flask V₂, then add distilled water up to the graduation mark and invert to mix.'
-                  )}
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">التركيز المولالي m (mol/kg):</label>
+                  <input type="number" step="any" value={molality} onChange={e => setMolality(e.target.value)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">معامل فانت هوف i (الأيونات الناتجة):</label>
+                  <input type="number" step="1" min="1" value={vanHoff} onChange={e => setVanHoff(Math.max(1, parseInt(e.target.value) || 1))} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+              </div>
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-emerald-500/30' : 'bg-emerald-50/50 border-emerald-200'}`}>
+                <div className="grid grid-cols-2 gap-3 font-mono">
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">درجة الغليان الجديدة:</span>
+                    <span className="text-xl font-black text-rose-400">{collRes.newTb.toFixed(3)} °C</span>
+                    <span className="text-[10px] text-slate-400 block mt-1">+ΔTb = {collRes.deltaTb.toFixed(3)}°C</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">درجة التجمد الجديدة:</span>
+                    <span className="text-xl font-black text-cyan-400">{collRes.newTf.toFixed(3)} °C</span>
+                    <span className="text-[10px] text-slate-400 block mt-1">-ΔTf = {collRes.deltaTf.toFixed(3)}°C</span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed mt-3">
+                  تعتمد الخواص الجامعة على عدد جسيمات المذاب في كمية محددة من المذيب وليس على طبيعة تلك الجسيمات.
                 </p>
               </div>
             </div>
           )}
 
-          {/* TAB 4: Henry's Law */}
-          {activeTab === 'henry' && (
-            <div className="space-y-6">
-              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                <h3 className="font-black text-sm sm:text-base text-cyan-400 mb-3 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" />
-                  <span>{t('قانون هنري لذائبية الغازات: S₁ / P₁ = S₂ / P₂', 'Henry’s Law: S₁ / P₁ = S₂ / P₂')}</span>
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">
-                      {t('الذائبية الابتدائية (S₁):', 'Initial Solubility (S₁):')}
-                    </label>
-                    <input
-                      type="number"
-                      step="0.05"
-                      value={s1}
-                      onChange={(e) => setS1(e.target.value)}
-                      className={`w-full px-4 py-2 rounded-xl border font-mono text-sm font-bold focus:ring-2 focus:ring-cyan-500 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                    <span className="text-[10px] text-slate-500">g/L</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">
-                      {t('الضغط الابتدائي للغاز (P₁):', 'Initial Gas Pressure (P₁):')}
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={p1}
-                      onChange={(e) => setP1(e.target.value)}
-                      className={`w-full px-4 py-2 rounded-xl border font-mono text-sm font-bold focus:ring-2 focus:ring-cyan-500 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                    <span className="text-[10px] text-slate-500">atm أو kPa</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">
-                      {t('الضغط الجديد للغاز (P₂):', 'New Gas Pressure (P₂):')}
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={p2}
-                      onChange={(e) => setP2(e.target.value)}
-                      className={`w-full px-4 py-2 rounded-xl border font-mono text-sm font-bold focus:ring-2 focus:ring-cyan-500 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                    <span className="text-[10px] text-slate-500">atm أو kPa</span>
-                  </div>
+          {/* ============================================================== */}
+          {/* CHEMISTRY 6: Molarity */}
+          {/* ============================================================== */}
+          {activeDomain === 'chemistry' && activeTab === 'molarity' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">عدد موالات المذاب n (mol):</label>
+                  <input type="number" step="any" value={molesSolute} onChange={e => setMolesSolute(e.target.value)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">حجم المحلول الكلي V (L):</label>
+                  <input type="number" step="any" value={volumeLiters} onChange={e => setVolumeLiters(e.target.value)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
                 </div>
               </div>
-
-              {/* Henry's Result */}
-              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-cyan-950/30 border-cyan-500/40' : 'bg-cyan-50 border-cyan-200'}`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <div className="text-xs uppercase tracking-wider font-bold opacity-80">
-                      {t('الذائبية الجديدة الناتجة (S₂)', 'New Calculated Solubility (S₂)')}
-                    </div>
-                    <div className="text-3xl sm:text-4xl font-black font-mono text-cyan-400 mt-1">
-                      {s2.toFixed(4)} g/L
-                    </div>
-                    <div className="text-xs font-mono mt-2 text-slate-400">
-                      S₂ = (S₁ × P₂) / P₁ = ({numS1} × {numP2}) / {numP1} = {s2.toFixed(4)} g/L
-                    </div>
-                  </div>
-
-                  <div className="max-w-xs text-xs opacity-85 leading-relaxed">
-                    {numP2 < numP1
-                      ? t('انخفض الضغط فوق السائل، لذا تهرب جزيئات الغاز من المحلول ويحدث فوران (مثل فتح قارورة المشروب الغازي).', 'Pressure decreased, so dissolved gas escapes with effervescence.')
-                      : t('زاد الضغط فوق السائل، مما يجبر المزيد من جزيئات الغاز على الذوبان في السائل.', 'Pressure increased, forcing more gas molecules into solution.')}
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-blue-500/30' : 'bg-blue-50/50 border-blue-200'}`}>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 block mb-2">المولارية M = n / V</span>
+                  <div className="text-center font-mono py-4">
+                    <span className="text-xs text-slate-500 block mb-1">التركيز المولاري:</span>
+                    <span className="text-3xl font-black text-blue-400">{molRes.molarity.toFixed(4)} M</span>
                   </div>
                 </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  عدد مولات المذاب الذائبة في لتر واحد من المحلول (mol/L).
+                </p>
               </div>
             </div>
           )}
 
-          {/* TAB 5: Colligative Properties (ΔTb & ΔTf) */}
-          {activeTab === 'colligative' && (
-            <div className="space-y-6">
-              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                <h3 className="font-black text-sm sm:text-base text-cyan-400 mb-3 flex items-center gap-2">
-                  <Scale className="w-4 h-4" />
-                  <span>{t('الخواص الجامعة: الارتفاع في الغليان والانخفاض في التجمد', 'Colligative Properties: ΔTb & ΔTf')}</span>
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">
-                      {t('نوع المذيب النقي:', 'Pure Solvent:')}
-                    </label>
-                    <select
-                      value={solvent}
-                      onChange={(e) => setSolvent(e.target.value as any)}
-                      className={`w-full px-3 py-2 rounded-xl border text-xs font-bold focus:ring-2 focus:ring-cyan-500 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+          {/* ============================================================== */}
+          {/* PHYSICS 7: Ideal Gas Law (PV=nRT) */}
+          {/* ============================================================== */}
+          {activeDomain === 'physics' && activeTab === 'gas' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <label className="text-xs font-bold block mb-2 text-slate-300">المتغير المراد حسابه (المجهول):</label>
+                <div className="grid grid-cols-4 gap-2 mb-3">
+                  {[
+                    { id: 'P', label: 'الضغط P' },
+                    { id: 'V', label: 'الحجم V' },
+                    { id: 'n', label: 'المولات n' },
+                    { id: 'T', label: 'الحرارة T' }
+                  ].map(item => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setGasTarget(item.id as any)}
+                      className={`p-2 rounded-xl text-xs font-bold border transition-all ${
+                        gasTarget === item.id ? 'bg-cyan-600 border-cyan-400 text-white' : isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'
                       }`}
                     >
-                      <option value="water">{t('الماء (Kb=0.512, Kf=1.86)', 'Water (Kb=0.512, Kf=1.86)')}</option>
-                      <option value="benzene">{t('البنزين (Kb=2.53, Kf=5.12)', 'Benzene (Kb=2.53, Kf=5.12)')}</option>
-                      <option value="ethanol">{t('الإيثانول (Kb=1.22, Kf=1.99)', 'Ethanol (Kb=1.22, Kf=1.99)')}</option>
-                      <option value="chloroform">{t('الكلوروفورم (Kb=3.63, Kf=4.68)', 'Chloroform (Kb=3.63, Kf=4.68)')}</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">
-                      {t('مولالية المحلول (m):', 'Molality (m, mol/kg):')}
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={molality}
-                      onChange={(e) => setMolality(e.target.value)}
-                      className={`w-full px-4 py-2 rounded-xl border font-mono text-sm font-bold focus:ring-2 focus:ring-cyan-500 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                    <span className="text-[10px] text-slate-500">mol / kg solvent</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">
-                      {t('معامل فانت هوف (عدد الأيونات i):', 'Van \'t Hoff factor (i):')}
-                    </label>
-                    <select
-                      value={vanHoff}
-                      onChange={(e) => setVanHoff(Number(e.target.value))}
-                      className={`w-full px-3 py-2 rounded-xl border text-xs font-bold focus:ring-2 focus:ring-cyan-500 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    >
-                      <option value={1}>{t('1 (مادة غير متأينة: سكروز، جلوكوز)', '1 (Non-electrolyte: sucrose, glucose)')}</option>
-                      <option value={2}>{t('2 (إلكتروليت ثنائي: NaCl, KBr)', '2 (Binary: NaCl, KBr)')}</option>
-                      <option value={3}>{t('3 (إلكتروليت ثلاثي: CaCl₂, Na₂SO₄)', '3 (Ternary: CaCl₂, Na₂SO₄)')}</option>
-                      <option value={4}>{t('4 (إلكتروليت رباعي: AlCl₃)', '4 (Quaternary: AlCl₃)')}</option>
-                    </select>
-                  </div>
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
+
+                {gasTarget !== 'P' && (
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">الضغط P (atm):</label>
+                    <input type="number" step="any" value={gasP} onChange={e => setGasP(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                )}
+                {gasTarget !== 'V' && (
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">الحجم V (Liters):</label>
+                    <input type="number" step="any" value={gasV} onChange={e => setGasV(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                )}
+                {gasTarget !== 'n' && (
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">كمية المادة n (mol):</label>
+                    <input type="number" step="any" value={gasN} onChange={e => setGasN(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                )}
+                {gasTarget !== 'T' && (
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">درجة الحرارة T (Kelvin):</label>
+                    <input type="number" step="any" value={gasT} onChange={e => setGasT(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                )}
               </div>
 
-              {/* Colligative Results */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className={`p-4 rounded-2xl border ${isDark ? 'bg-rose-950/30 border-rose-500/40 text-rose-200' : 'bg-rose-50 border-rose-200 text-rose-900'}`}>
-                  <div className="text-xs uppercase font-bold tracking-wider">{t('درجة غليان المحلول بعد الارتفاع (Tb)', 'Boiling Point (Tb)')}</div>
-                  <div className="text-3xl font-black font-mono text-rose-400 mt-1">{finalTb.toFixed(3)} °C</div>
-                  <div className="text-xs font-mono mt-1 opacity-80">
-                    ΔTb = Kb · m · i = {deltaTb.toFixed(3)} °C  (Tb = {activeSolv.tb0} + {deltaTb.toFixed(3)})
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-cyan-500/30' : 'bg-cyan-50/50 border-cyan-200'}`}>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 block mb-2">معادلة الغاز المثالي: PV = nRT</span>
+                  <div className="text-center font-mono py-4">
+                    <span className="text-xs text-slate-500 block mb-1">الناتج المحسوب ({gasTarget}):</span>
+                    <span className="text-3xl font-black text-cyan-400">{gasRes.val.toFixed(3)} {gasRes.unit}</span>
                   </div>
                 </div>
-
-                <div className={`p-4 rounded-2xl border ${isDark ? 'bg-cyan-950/30 border-cyan-500/40 text-cyan-200' : 'bg-cyan-50 border-cyan-200 text-cyan-900'}`}>
-                  <div className="text-xs uppercase font-bold tracking-wider">{t('درجة تجمد المحلول بعد الانخفاض (Tf)', 'Freezing Point (Tf)')}</div>
-                  <div className="text-3xl font-black font-mono text-cyan-400 mt-1">{finalTf.toFixed(3)} °C</div>
-                  <div className="text-xs font-mono mt-1 opacity-80">
-                    ΔTf = Kf · m · i = {deltaTf.toFixed(3)} °C  (Tf = {activeSolv.tf0} - {deltaTf.toFixed(3)})
-                  </div>
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
+                  الثابت العام للغازات: R = 0.08206 L·atm/(mol·K) = 8.314 J/(mol·K).
                 </div>
               </div>
             </div>
           )}
 
-          {/* TAB 6: Molarity & Mass % */}
-          {activeTab === 'molarity' && (
-            <div className="space-y-6">
-              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                <h3 className="font-black text-sm sm:text-base text-cyan-400 mb-3 flex items-center gap-2">
-                  <Scale className="w-4 h-4" />
-                  <span>{t('حساب المولارية والنسبة المئوية بالكتلة للمحاليل', 'Molarity and Mass Percent Calculator')}</span>
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">{t('كتلة المذاب (g):', 'Solute Mass (g):')}</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={soluteGrams}
-                      onChange={(e) => setSoluteGrams(e.target.value)}
-                      className={`w-full px-3 py-2 rounded-xl border font-mono text-xs font-bold ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">{t('الكتلة المولية للمذاب (g/mol):', 'Molar Mass (g/mol):')}</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={molarMass}
-                      onChange={(e) => setMolarMass(e.target.value)}
-                      className={`w-full px-3 py-2 rounded-xl border font-mono text-xs font-bold ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">{t('حجم المحلول الكلي (L):', 'Total Volume (L):')}</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={solnVolumeL}
-                      onChange={(e) => setSolnVolumeL(e.target.value)}
-                      className={`w-full px-3 py-2 rounded-xl border font-mono text-xs font-bold ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1">{t('كتلة المحلول الكلية (g):', 'Total Mass (g):')}</label>
-                    <input
-                      type="number"
-                      step="10"
-                      value={solnTotalGrams}
-                      onChange={(e) => setSolnTotalGrams(e.target.value)}
-                      className={`w-full px-3 py-2 rounded-xl border font-mono text-xs font-bold ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                  </div>
+          {/* ============================================================== */}
+          {/* PHYSICS 8: Coulomb's Law */}
+          {/* ============================================================== */}
+          {activeDomain === 'physics' && activeTab === 'coulomb' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">الشحنة الأولى q1 (µC):</label>
+                  <input type="number" step="any" value={q1Micro} onChange={e => setQ1Micro(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">الشحنة الثانية q2 (µC):</label>
+                  <input type="number" step="any" value={q2Micro} onChange={e => setQ2Micro(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">المسافة الفاصلة r (meters):</label>
+                  <input type="number" step="any" value={distanceM} onChange={e => setDistanceM(parseFloat(e.target.value) || 0.1)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
                 </div>
               </div>
 
-              {/* Molarity Results */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono">
-                <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="text-xs text-slate-400 font-sans">{t('عدد مولات المذاب (n)', 'Moles of Solute (n)')}</div>
-                  <div className="text-2xl font-black text-cyan-400 mt-1">{calcMoles.toFixed(4)} mol</div>
-                  <div className="text-[10px] text-slate-500 font-sans mt-1">n = mass / molar mass</div>
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-purple-500/30' : 'bg-purple-50/50 border-purple-200'}`}>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 block mb-2">قانون كولوم: F = k · |q1 · q2| / r²</span>
+                  <div className="text-center font-mono py-4">
+                    <span className="text-xs text-slate-500 block mb-1">القوة المتبادلة F:</span>
+                    <span className="text-3xl font-black text-purple-400">{coulombRes.fN.toFixed(4)} N</span>
+                  </div>
                 </div>
-
-                <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="text-xs text-slate-400 font-sans">{t('التركيز المولاري (Molarity)', 'Molarity (M)')}</div>
-                  <div className="text-2xl font-black text-emerald-400 mt-1">{calcMolarity.toFixed(4)} M</div>
-                  <div className="text-[10px] text-slate-500 font-sans mt-1">M = moles / volume(L)</div>
-                </div>
-
-                <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="text-xs text-slate-400 font-sans">{t('النسبة المئوية بالكتلة (% w/w)', 'Mass Percent (% w/w)')}</div>
-                  <div className="text-2xl font-black text-amber-400 mt-1">{calcMassPercent.toFixed(2)} %</div>
-                  <div className="text-[10px] text-slate-500 font-sans mt-1">% = (m_solute / m_total) × 100</div>
+                <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+                  <span className="text-slate-400">نوع القوة:</span>
+                  <span className={`font-bold ${coulombRes.isAttract ? 'text-cyan-400' : 'text-amber-400'}`}>
+                    {coulombRes.isAttract ? 'تجاذب (شحنات مختلفة)' : 'تنافر (شحنات متشابهة)'}
+                  </span>
                 </div>
               </div>
             </div>
           )}
+
+          {/* ============================================================== */}
+          {/* PHYSICS 9: Photoelectric Effect */}
+          {/* ============================================================== */}
+          {activeDomain === 'physics' && activeTab === 'photoelectric' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">طول موجة الضوء الساقط λ (nm):</label>
+                  <input type="number" step="any" value={lambdaNm} onChange={e => setLambdaNm(parseFloat(e.target.value) || 100)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">دالة الشغل للفلز Φ (eV):</label>
+                  <div className="grid grid-cols-3 gap-1.5 mb-2">
+                    {[
+                      { name: 'سيزيوم', phi: 2.14 },
+                      { name: 'صوديوم', phi: 2.46 },
+                      { name: 'بلاتين', phi: 6.35 }
+                    ].map(m => (
+                      <button
+                        key={m.name}
+                        type="button"
+                        onClick={() => setWorkPhiEV(m.phi)}
+                        className={`p-1.5 rounded-lg text-[10px] font-bold border ${
+                          workPhiEV === m.phi ? 'bg-amber-600 text-white border-amber-400' : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}
+                      >
+                        {m.name} ({m.phi}eV)
+                      </button>
+                    ))}
+                  </div>
+                  <input type="number" step="any" value={workPhiEV} onChange={e => setWorkPhiEV(parseFloat(e.target.value) || 1)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+              </div>
+
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-amber-500/30' : 'bg-amber-50/50 border-amber-200'}`}>
+                <div className="space-y-3 font-mono">
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">طاقة الفوتون الساقط E:</span>
+                    <span className="text-xl font-black text-amber-400">{photoRes.energyEV.toFixed(3)} eV</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">أقصى طاقة حركية K_max:</span>
+                    <span className="text-xl font-black text-emerald-400">{photoRes.kMaxEV.toFixed(3)} eV</span>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+                  <span className="text-slate-400">انبعاث الإلكترونات:</span>
+                  <span className={`font-bold ${photoRes.isEmitted ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {photoRes.isEmitted ? 'يحدث انبعاث كهروضوئي (E ≥ Φ)' : 'لا يحدث انبعاث (E < Φ)'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* PHYSICS 10: Buoyancy & Archimedes */}
+          {/* ============================================================== */}
+          {activeDomain === 'physics' && activeTab === 'buoyancy' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">كثافة السائل ρ (kg/m³):</label>
+                  <input type="number" step="any" value={fluidDensity} onChange={e => setFluidDensity(parseFloat(e.target.value) || 1000)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">حجم السائل المزاح V (Liters):</label>
+                  <input type="number" step="any" value={displacedVolumeL} onChange={e => setDisplacedVolumeL(parseFloat(e.target.value) || 1)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">تسارع الجاذبية g (m/s²):</label>
+                  <input type="number" step="any" value={gravityG} onChange={e => setGravityG(parseFloat(e.target.value) || 9.8)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+              </div>
+
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-teal-500/30' : 'bg-teal-50/50 border-teal-200'}`}>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 block mb-2">قاعدة أرخميدس: Fb = ρ · V · g</span>
+                  <div className="text-center font-mono py-4">
+                    <span className="text-xs text-slate-500 block mb-1">قوة الطفو الصاعدة Fb:</span>
+                    <span className="text-3xl font-black text-teal-400">{buoyRes.forceN.toFixed(2)} N</span>
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs font-mono flex items-center justify-between">
+                  <span className="text-slate-400">كتلة السائل المزاح:</span>
+                  <span className="text-slate-100 font-bold">{buoyRes.massDisplacedKg.toFixed(2)} kg</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* PHYSICS 11: Kinetic Energy & Momentum */}
+          {/* ============================================================== */}
+          {activeDomain === 'physics' && activeTab === 'kinetic' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">الكتلة m (kg):</label>
+                  <input type="number" step="any" value={massKg} onChange={e => setMassKg(parseFloat(e.target.value) || 1)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">السرعة v (m/s):</label>
+                  <input type="number" step="any" value={velocityMs} onChange={e => setVelocityMs(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+              </div>
+
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-rose-500/30' : 'bg-rose-50/50 border-rose-200'}`}>
+                <div className="space-y-3 font-mono">
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">الطاقة الحركية Ek = ½ m v²:</span>
+                    <span className="text-2xl font-black text-rose-400">{kinRes.ek.toFixed(2)} Joules (J)</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">الزخم الخطي p = m v:</span>
+                    <span className="text-xl font-black text-amber-400">{kinRes.p.toFixed(2)} kg·m/s</span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed mt-2">
+                  تتناسب الطاقة الحركية طردياً مع مربع السرعة ومع الكتلة.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* PHYSICS 12: Snell's Law */}
+          {/* ============================================================== */}
+          {activeDomain === 'physics' && activeTab === 'snell' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">معامل انكسار الوسط الأول n1:</label>
+                  <input type="number" step="any" value={n1} onChange={e => setN1(parseFloat(e.target.value) || 1)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">زاوية السقوط θ1 (درجة):</label>
+                  <input type="number" step="any" value={theta1Deg} onChange={e => setTheta1Deg(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">معامل انكسار الوسط الثاني n2:</label>
+                  <input type="number" step="any" value={n2} onChange={e => setN2(parseFloat(e.target.value) || 1)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+              </div>
+
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-indigo-500/30' : 'bg-indigo-50/50 border-indigo-200'}`}>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 block mb-2">قانون سنيل: n1 · sin(θ1) = n2 · sin(θ2)</span>
+                  <div className="text-center font-mono py-4">
+                    <span className="text-xs text-slate-500 block mb-1">زاوية الانكسار θ2:</span>
+                    <span className="text-3xl font-black text-indigo-400">
+                      {snellRes.tir ? t('انعكاس كلي داخلي', 'Total Internal Refl.') : `${snellRes.theta2Deg.toFixed(2)}°`}
+                    </span>
+                  </div>
+                </div>
+                {snellRes.criticalAngleDeg !== null && (
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs font-mono flex items-center justify-between">
+                    <span className="text-slate-400">الزاوية الحرجة θc:</span>
+                    <span className="text-amber-400 font-bold">{snellRes.criticalAngleDeg.toFixed(2)}°</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer */}
+        <div className={`p-3.5 sm:p-4 border-t flex items-center justify-between text-xs ${
+          isDark ? 'border-slate-800 bg-slate-950 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-600'
+        }`}>
+          <span>
+            {activeDomain === 'chemistry'
+              ? t('مرجع القوانين: كتاب كيمياء 3 مسارات - الفصول 1 إلى 5', 'Chemistry 3 Curriculum Reference')
+              : t('مرجع القوانين: فيزياء 3 والميكانيكا والكهرومغناطيسية والكم', 'Physics 3 Mechanics, Coulomb & Quantum')}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold transition-all shadow-md"
+          >
+            {t('تم', 'Done')}
+          </button>
         </div>
       </div>
     </div>

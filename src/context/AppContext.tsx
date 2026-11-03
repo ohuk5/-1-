@@ -8,7 +8,8 @@ export type ActiveTabType =
   | 'molecule-builder'
   | 'states-of-matter'
   | 'radioactive-decay'
-  | 'experiments-lab';
+  | 'experiments-lab'
+  | 'physics-lab';
 export type ApparatusStationType =
   | 'main_workbench'
   | 'burette_titration'
@@ -17,6 +18,22 @@ export type ApparatusStationType =
   | 'cylinder_pipette'
   | 'test_tube_rack'
   | 'spectrometer_discharge';
+
+export type AppDomain = 'chemistry' | 'physics';
+export type PhysicsStationId = 'gas_fluid' | 'electrostatics' | 'optics_quantum';
+export type CalculatorTabType =
+  | 'ph'
+  | 'cell_potential'
+  | 'henry'
+  | 'dilution'
+  | 'colligative'
+  | 'molarity'
+  | 'gas'
+  | 'coulomb'
+  | 'photoelectric'
+  | 'buoyancy'
+  | 'kinetic'
+  | 'snell';
 
 export interface LabExperimentTrigger {
   substanceId?: string;
@@ -42,21 +59,28 @@ interface AppContextType {
   setSoundEnabled: (enabled: boolean) => void;
   toggleSound: () => void;
   t: (ar: string, en: string) => string;
+  // Domain bifurcation: Chemistry vs Physics
+  currentDomain: AppDomain;
+  setCurrentDomain: (domain: AppDomain) => void;
+  toggleDomain: () => void;
   activeTab: ActiveTabType;
   setActiveTab: (tab: ActiveTabType) => void;
+  physicsStation: PhysicsStationId;
+  setPhysicsStation: (station: PhysicsStationId) => void;
   activeApparatusStation: ApparatusStationType;
   setActiveApparatusStation: (station: ApparatusStationType) => void;
   activeLabPreset: LabExperimentTrigger | null;
   launchLabExperiment: (tab: ActiveTabType, config: LabExperimentTrigger) => void;
   clearLabExperiment: () => void;
-  // Curriculum Reference & Chemistry Calculator
+  // Curriculum Reference & Chemistry/Physics Calculator
   isCurriculumOpen: boolean;
   curriculumChapter: number;
   openCurriculum: (chapter?: number) => void;
   closeCurriculum: () => void;
   isCalculatorOpen: boolean;
-  calculatorTab: 'ph' | 'cell_potential' | 'henry' | 'dilution' | 'colligative' | 'molarity';
-  openCalculator: (tab?: 'ph' | 'cell_potential' | 'henry' | 'dilution' | 'colligative' | 'molarity') => void;
+  calculatorTab: CalculatorTabType;
+  calculatorDomain: AppDomain;
+  openCalculator: (tab?: CalculatorTabType | 'chemistry' | 'physics') => void;
   closeCalculator: () => void;
   curriculumExperimentToLaunch: string | null;
   setCurriculumExperimentToLaunch: (id: string | null) => void;
@@ -78,14 +102,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved === null ? true : saved === 'true';
   });
 
+  const [currentDomain, setCurrentDomainState] = useState<AppDomain>(() => {
+    return (localStorage.getItem('app_domain') as AppDomain) || 'chemistry';
+  });
+
   const [activeTab, setActiveTabState] = useState<ActiveTabType>('atom-builder');
+  const [physicsStation, setPhysicsStationState] = useState<PhysicsStationId>('gas_fluid');
   const [activeApparatusStation, setActiveApparatusStationState] = useState<ApparatusStationType>('main_workbench');
   const [activeLabPreset, setActiveLabPreset] = useState<LabExperimentTrigger | null>(null);
   const [isCurriculumOpen, setIsCurriculumOpen] = useState<boolean>(false);
   const [curriculumChapter, setCurriculumChapter] = useState<number>(1);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState<boolean>(false);
-  const [calculatorTab, setCalculatorTab] = useState<'ph' | 'cell_potential' | 'henry' | 'dilution' | 'colligative' | 'molarity'>('ph');
+  const [calculatorTab, setCalculatorTab] = useState<CalculatorTabType>('ph');
+  const [calculatorDomain, setCalculatorDomain] = useState<AppDomain>('chemistry');
   const [curriculumExperimentToLaunch, setCurriculumExperimentToLaunch] = useState<string | null>(null);
+
+  const setCurrentDomain = (domain: AppDomain) => {
+    setCurrentDomainState(domain);
+    localStorage.setItem('app_domain', domain);
+    playLabSound('click');
+  };
+
+  const toggleDomain = () => {
+    setCurrentDomain(currentDomain === 'chemistry' ? 'physics' : 'chemistry');
+  };
+
+  const setPhysicsStation = (station: PhysicsStationId) => {
+    setPhysicsStationState(station);
+    playLabSound('click');
+  };
 
   const openCurriculum = (chapter?: number) => {
     if (chapter) setCurriculumChapter(chapter);
@@ -97,8 +142,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsCurriculumOpen(false);
   };
 
-  const openCalculator = (tab?: 'ph' | 'cell_potential' | 'henry' | 'dilution' | 'colligative' | 'molarity') => {
-    if (tab) setCalculatorTab(tab);
+  const openCalculator = (tab?: CalculatorTabType | 'chemistry' | 'physics') => {
+    if (tab === 'chemistry') {
+      setCalculatorDomain('chemistry');
+      setCalculatorTab('ph');
+    } else if (tab === 'physics') {
+      setCalculatorDomain('physics');
+      setCalculatorTab('gas');
+    } else if (tab) {
+      const physicsTabs: CalculatorTabType[] = ['gas', 'coulomb', 'photoelectric', 'buoyancy', 'kinetic', 'snell'];
+      if (physicsTabs.includes(tab as CalculatorTabType)) {
+        setCalculatorDomain('physics');
+      } else {
+        setCalculatorDomain('chemistry');
+      }
+      setCalculatorTab(tab as CalculatorTabType);
+    } else {
+      // Default to current domain
+      if (currentDomain === 'physics') {
+        setCalculatorDomain('physics');
+        setCalculatorTab('gas');
+      } else {
+        setCalculatorDomain('chemistry');
+        setCalculatorTab('ph');
+      }
+    }
     setIsCalculatorOpen(true);
     playLabSound('click');
   };
@@ -179,6 +247,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const launchLabExperiment = (tab: ActiveTabType, config: LabExperimentTrigger) => {
     setActiveLabPreset(config);
+    setCurrentDomainState('chemistry');
     setActiveTabState(tab);
     playLabSound('success');
   };
@@ -200,8 +269,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSoundEnabled,
         toggleSound,
         t,
+        currentDomain,
+        setCurrentDomain,
+        toggleDomain,
         activeTab,
         setActiveTab,
+        physicsStation,
+        setPhysicsStation,
         activeApparatusStation,
         setActiveApparatusStation,
         activeLabPreset,
@@ -213,6 +287,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         closeCurriculum,
         isCalculatorOpen,
         calculatorTab,
+        calculatorDomain,
         openCalculator,
         closeCalculator,
         curriculumExperimentToLaunch,
