@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { X, Search, Filter, Sparkles, Check } from 'lucide-react';
 import { ALL_ELEMENTS, ElementInfo, CATEGORY_COLORS } from '../data/elementsData';
+import { useApp } from '../context/AppContext';
 
 interface PeriodicTableModalProps {
   isOpen: boolean;
@@ -39,9 +40,12 @@ export const PeriodicTableModal: React.FC<PeriodicTableModalProps> = ({
   onSelectElement,
   currentAtomicNumber
 }) => {
+  const { lang, theme, t } = useApp();
+  const isDark = theme === 'dark';
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [hoveredElement, setHoveredElement] = useState<ElementInfo | null>(null);
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
   const elementsMap = useMemo(() => {
     const map = new Map<number, ElementInfo>();
@@ -68,39 +72,52 @@ export const PeriodicTableModal: React.FC<PeriodicTableModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-6xl max-h-[95vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+      <div className={`border rounded-2xl w-full max-w-6xl max-h-[95vh] flex flex-col shadow-2xl overflow-hidden my-auto ${
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+      }`}>
         {/* Header Bar */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between gap-3 bg-slate-950/60">
+        <div className={`p-4 border-b flex items-center justify-between gap-3 ${
+          isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+        }`}>
           <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <span>الجدول الدوري الشامل للعناصر الكيميائية</span>
+            <h2 className={`text-lg font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <span>{t('الجدول الدوري الشامل للعناصر الكيميائية', 'Comprehensive Periodic Table of Elements')}</span>
               <span className="text-xs text-cyan-400 bg-cyan-950/60 border border-cyan-800 px-2 py-0.5 rounded font-mono">
-                118 عنصراً
+                118 {t('عنصراً', 'Elements')}
               </span>
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              انقر على أي عنصر لتحميل مكوناته (بروتونات، نيوترونات، إلكترونات) في محاكي الذرة
+              {t(
+                'انقر على أي عنصر لتحميل مكوناته (بروتونات، نيوترونات، إلكترونات) في محاكي الذرة',
+                'Click any element to load its subatomic structure into the Atom Builder simulator'
+              )}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+            className={`p-2 rounded-xl transition-colors ${
+              isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-600 hover:text-slate-900'
+            }`}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Search & Filter Bar */}
-        <div className="p-3 bg-slate-950/40 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div className={`p-3 border-b flex flex-wrap items-center justify-between gap-3 ${
+          isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-slate-50/80 border-slate-200'
+        }`}>
           <div className="relative flex-1 min-w-[220px]">
             <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ابحث بالاسم العربي، الإنجليزي، الرمز أو العدد الذري..."
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl pr-9 pl-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500"
+              placeholder={t('ابحث بالاسم العربي، الإنجليزي، الرمز أو العدد الذري...', 'Search by Arabic, English name, symbol, or atomic number...')}
+              className={`w-full border rounded-xl pr-9 pl-3 py-2 text-xs placeholder:text-slate-500 focus:outline-none focus:border-cyan-500 ${
+                isDark ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-white border-slate-300 text-slate-800'
+              }`}
             />
             {searchQuery && (
               <button
@@ -112,17 +129,47 @@ export const PeriodicTableModal: React.FC<PeriodicTableModalProps> = ({
             )}
           </div>
 
-          {/* Category Filter Pills */}
+          {/* Category Filter Pills & View Mode */}
           <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 text-xs">
+            {/* View Mode Toggle (Table / Cards for Mobile) */}
+            <div className="flex items-center rounded-xl border border-slate-700/60 p-0.5 text-xs font-bold shrink-0 bg-slate-900/60 mr-1">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 ${
+                  viewMode === 'table'
+                    ? 'bg-cyan-600 text-white shadow-xs'
+                    : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title={t('جدول دوري (18 مجموعة)', 'Periodic Table Grid')}
+              >
+                <span>⊞</span>
+                <span className="text-[11px]">{t('جدول', 'Table')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 ${
+                  viewMode === 'cards'
+                    ? 'bg-cyan-600 text-white shadow-xs'
+                    : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title={t('بطاقات عناصر للموبايل', 'Responsive Cards View')}
+              >
+                <span>▦</span>
+                <span className="text-[11px]">{t('بطاقات', 'Cards')}</span>
+              </button>
+            </div>
+
             <button
               onClick={() => setSelectedCategory('all')}
               className={`px-2.5 py-1.5 rounded-lg font-medium transition-all shrink-0 ${
                 selectedCategory === 'all'
                   ? 'bg-cyan-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                  : isDark ? 'bg-slate-800/80 text-slate-400 hover:text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
               }`}
             >
-              الكل (118)
+              {t('الكل (118)', 'All (118)')}
             </button>
             {Object.entries(CATEGORY_COLORS).map(([catKey, val]) => (
               <button
@@ -131,19 +178,64 @@ export const PeriodicTableModal: React.FC<PeriodicTableModalProps> = ({
                 className={`px-2 py-1 rounded-lg border text-[11px] font-medium transition-all shrink-0 ${val.border} ${
                   selectedCategory === catKey
                     ? `${val.bg} ${val.text} ring-1 ring-white/20 font-bold`
-                    : 'bg-slate-900/50 text-slate-400 hover:text-slate-200'
+                    : isDark ? 'bg-slate-900/50 text-slate-400 hover:text-slate-200' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
                 }`}
               >
-                {val.badge}
+                {t(val.badge, catKey)}
               </button>
             ))}
           </div>
         </div>
 
         {/* Periodic Grid Container */}
-        <div className="flex-1 overflow-auto p-4 space-y-4">
-          {/* Main 7 Periods Grid */}
-          <div className="min-w-[860px]">
+        <div className="flex-1 overflow-auto p-3 sm:p-4 space-y-4">
+          {viewMode === 'cards' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              {filteredElements.map((el) => {
+                const isSelected = el.atomicNumber === currentAtomicNumber;
+                const colors = CATEGORY_COLORS[el.category] || CATEGORY_COLORS['nonmetal'];
+                return (
+                  <button
+                    key={el.atomicNumber}
+                    onClick={() => {
+                      onSelectElement(el);
+                      onClose();
+                    }}
+                    onMouseEnter={() => setHoveredElement(el)}
+                    onMouseLeave={() => setHoveredElement(null)}
+                    className={`p-3 rounded-xl border flex flex-col justify-between text-start transition-all active:scale-95 ${
+                      colors.border
+                    } ${isSelected ? 'ring-2 ring-cyan-400 shadow-md scale-[1.02]' : ''} ${
+                      colors.bg
+                    } hover:shadow-lg`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="font-mono text-xs font-bold text-slate-400">#{el.atomicNumber}</span>
+                      {el.isRadioactive && <span className="text-amber-400 text-xs" title="عنصر مشع">☢</span>}
+                    </div>
+                    <div className="my-1.5 flex items-baseline gap-2">
+                      <span className="text-xl font-black text-white">{el.symbol}</span>
+                      <span className="text-xs font-bold text-slate-200 truncate">{t(el.name, el.englishName)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1 border-t border-slate-700/40">
+                      <span>{el.atomicMass.toFixed(1)} u</span>
+                      <span className="truncate max-w-[80px]">{t(CATEGORY_COLORS[el.category]?.badge || '', el.category)}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <>
+              {/* Mobile Swipe Hint */}
+              <div className="sm:hidden text-center py-1.5 px-3 bg-cyan-950/60 border border-cyan-800/40 rounded-xl text-[11px] text-cyan-300 font-medium flex items-center justify-between">
+                <span>👉</span>
+                <span>{t('اسحب أفقياً لتصفح الجدول أو حوّل لـ (بطاقات ▦)', 'Swipe table or toggle (Cards ▦)')}</span>
+                <span>👈</span>
+              </div>
+
+              {/* Main 7 Periods Grid */}
+              <div className="min-w-[860px]">
             <div className="grid grid-cols-18 gap-1.5 text-center" style={{ gridTemplateColumns: 'repeat(18, minmax(0, 1fr))' }}>
               {PERIODIC_GRID_MAIN.map((row, rIdx) =>
                 row.map((zNum, cIdx) => {
@@ -209,7 +301,7 @@ export const PeriodicTableModal: React.FC<PeriodicTableModalProps> = ({
                         {el.symbol}
                       </span>
                       <span className="text-[8px] text-slate-300 truncate w-full text-center">
-                        {el.name}
+                        {t(el.name, el.englishName)}
                       </span>
                     </button>
                   );
@@ -221,8 +313,8 @@ export const PeriodicTableModal: React.FC<PeriodicTableModalProps> = ({
             <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2">
               {/* Lanthanides Row */}
               <div className="flex items-center gap-2">
-                <span className="w-24 text-[10px] font-bold text-purple-400 text-left shrink-0">
-                  اللانثانيدات (La-Lu):
+                <span className="w-28 text-[10px] font-bold text-purple-400 shrink-0">
+                  {t('اللانثانيدات (La-Lu):', 'Lanthanides (La-Lu):')}
                 </span>
                 <div className="grid grid-cols-15 gap-1.5 flex-1">
                   {LANTHANIDES.map(z => {
@@ -247,7 +339,7 @@ export const PeriodicTableModal: React.FC<PeriodicTableModalProps> = ({
                       >
                         <span className="text-[8px] text-slate-400 font-mono">{el.atomicNumber}</span>
                         <span className="text-xs font-extrabold text-purple-300">{el.symbol}</span>
-                        <span className="text-[7.5px] text-slate-300 truncate w-full text-center">{el.name}</span>
+                        <span className="text-[7.5px] text-slate-300 truncate w-full text-center">{t(el.name, el.englishName)}</span>
                       </button>
                     );
                   })}
@@ -256,8 +348,8 @@ export const PeriodicTableModal: React.FC<PeriodicTableModalProps> = ({
 
               {/* Actinides Row */}
               <div className="flex items-center gap-2">
-                <span className="w-24 text-[10px] font-bold text-fuchsia-400 text-left shrink-0">
-                  الأكتينيدات (Ac-Lr):
+                <span className="w-28 text-[10px] font-bold text-fuchsia-400 shrink-0">
+                  {t('الأكتينيدات (Ac-Lr):', 'Actinides (Ac-Lr):')}
                 </span>
                 <div className="grid grid-cols-15 gap-1.5 flex-1">
                   {ACTINIDES.map(z => {
@@ -282,7 +374,7 @@ export const PeriodicTableModal: React.FC<PeriodicTableModalProps> = ({
                       >
                         <span className="text-[8px] text-slate-400 font-mono">{el.atomicNumber}</span>
                         <span className="text-xs font-extrabold text-fuchsia-300">{el.symbol}</span>
-                        <span className="text-[7.5px] text-slate-300 truncate w-full text-center">{el.name}</span>
+                        <span className="text-[7.5px] text-slate-300 truncate w-full text-center">{t(el.name, el.englishName)}</span>
                       </button>
                     );
                   })}
@@ -290,31 +382,38 @@ export const PeriodicTableModal: React.FC<PeriodicTableModalProps> = ({
               </div>
             </div>
           </div>
+          </>
+          )}
         </div>
 
         {/* Preview Footer Strip */}
-        <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-300">
+        <div className={`p-3 border-t flex items-center justify-between text-xs ${
+          isDark ? 'bg-slate-950 border-slate-800 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
+        }`}>
           {hoveredElement ? (
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-white text-base">{hoveredElement.name}</span>
+                <span className={`font-extrabold text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>{t(hoveredElement.name, hoveredElement.englishName)}</span>
                 <span className="font-mono text-cyan-400 text-sm font-bold">({hoveredElement.symbol})</span>
                 <span className="text-slate-500">·</span>
-                <span className="text-slate-400">العدد الذري: {hoveredElement.atomicNumber}</span>
+                <span className="text-slate-400">{t('العدد الذري:', 'Atomic Number:')} {hoveredElement.atomicNumber}</span>
                 <span className="text-slate-500">·</span>
-                <span className="text-slate-400">الكتلة الذرية: {hoveredElement.atomicMass.toFixed(3)} u</span>
+                <span className="text-slate-400">{t('الكتلة الذرية:', 'Atomic Mass:')} {hoveredElement.atomicMass.toFixed(3)} u</span>
                 <span className="text-slate-500">·</span>
-                <span className="text-slate-400">التوزيع: {hoveredElement.electronConfig}</span>
+                <span className="text-slate-400">{t('التوزيع:', 'Config:')} {hoveredElement.electronConfig}</span>
               </div>
             </div>
           ) : (
             <span className="text-slate-500">
-              💡 مرر الفأرة فوق أي عنصر لمعاينة خصائصه، أو انقر عليه مباشرة لتحميله في جهاز بناء الذرة.
+              💡 {t(
+                'مرر الفأرة فوق أي عنصر لمعاينة خصائصه، أو انقر عليه مباشرة لتحميله في جهاز بناء الذرة.',
+                'Hover over any element to inspect properties, or click to load into the Atom Builder.'
+              )}
             </span>
           )}
 
           <div className="flex items-center gap-2">
-            <span className="text-slate-500">العناصر المعروضة: {filteredElements.length} من 118</span>
+            <span className="text-slate-500">{t('العناصر المعروضة:', 'Displayed:')} {filteredElements.length} / 118</span>
           </div>
         </div>
       </div>

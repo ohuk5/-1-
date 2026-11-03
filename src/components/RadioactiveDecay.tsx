@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Radiation,
   Play,
@@ -11,9 +11,14 @@ import {
   TrendingDown,
   Info,
   CheckCircle2,
-  Sparkles
+  Sparkles,
+  BookOpen,
+  Atom,
+  Shield
 } from 'lucide-react';
 import { ISOTOPES, IsotopeInfo } from '../data/isotopesData';
+import { useApp } from '../context/AppContext';
+import { playLabSound } from '../utils/soundEffects';
 
 interface DecayCell {
   id: number;
@@ -30,10 +35,19 @@ interface EjectedParticle {
   color: string;
   label: string;
   life: number;
+  pType?: 'alpha' | 'beta' | 'gamma' | 'neutrino';
+  blocked?: boolean;
 }
 
-export const RadioactiveDecay: React.FC = () => {
+interface RadioactiveDecayProps {
+  onOpenGuide?: () => void;
+}
+
+export const RadioactiveDecay: React.FC<RadioactiveDecayProps> = ({ onOpenGuide }) => {
+  const { lang, theme, t, activeLabPreset, clearLabExperiment, launchLabExperiment, openCurriculum } = useApp();
+  const isDark = theme === 'dark';
   const [selectedIsotopeId, setSelectedIsotopeId] = useState<string>('carbon14');
+  const [shieldType, setShieldType] = useState<'none' | 'paper' | 'aluminum' | 'lead'>('none');
   const [gridCells, setGridCells] = useState<DecayCell[]>([]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [elapsedCycles, setElapsedCycles] = useState<number>(0);
@@ -52,53 +66,76 @@ export const RadioactiveDecay: React.FC = () => {
   const timerRef = useRef<number | null>(null);
   const activeIsotope: IsotopeInfo = ISOTOPES[selectedIsotopeId] || ISOTOPES['carbon14'];
 
+  // Keep references to prevent stale closures and duplicate cycle recordings
+  const gridCellsRef = useRef<DecayCell[]>([]);
+  const elapsedCyclesRef = useRef<number>(0);
+  gridCellsRef.current = gridCells;
+  elapsedCyclesRef.current = elapsedCycles;
+
   // Initialize or reset 100-nuclei grid
-  const initSimulation = () => {
+  const initSimulation = useCallback(() => {
     setIsPlaying(false);
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    elapsedCyclesRef.current = 0;
     setElapsedCycles(0);
     const cells: DecayCell[] = [];
     for (let i = 0; i < 100; i++) {
       cells.push({ id: i, status: 'unstable', decayCycle: null });
     }
+    gridCellsRef.current = cells;
     setGridCells(cells);
     setHistoryPoints([{ cycle: 0, count: 100 }]);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (activeLabPreset && activeLabPreset.isotopeId && ISOTOPES[activeLabPreset.isotopeId]) {
+      setSelectedIsotopeId(activeLabPreset.isotopeId);
+      clearLabExperiment();
+    }
+  }, [activeLabPreset, clearLabExperiment]);
 
   useEffect(() => {
     initSimulation();
-  }, [selectedIsotopeId]);
+  }, [selectedIsotopeId, initSimulation]);
 
-  // One half-life cycle step
-  const tickCycle = () => {
-    setGridCells(prev => {
-      let anyChanged = false;
-      const next = prev.map(cell => {
-        if (cell.status === 'unstable') {
-          // 50% probability of decay per half-life
-          if (Math.random() < 0.5) {
-            anyChanged = true;
-            return { ...cell, status: 'stable' as const, decayCycle: elapsedCycles + 1 };
-          }
+  // One half-life cycle step (Strictly prevents duplicate data points on the same cycle)
+  const tickCycle = useCallback(() => {
+    const currentCells = gridCellsRef.current;
+    const currentCycle = elapsedCyclesRef.current;
+    const nextCycle = currentCycle + 1;
+
+    let newUnstable = 0;
+    const nextCells = currentCells.map(cell => {
+      if (cell.status === 'unstable') {
+        // 50% probability of decay per half-life
+        if (Math.random() < 0.5) {
+          return { ...cell, status: 'stable' as const, decayCycle: nextCycle };
         }
-        return cell;
-      });
-
-      const unstableCount = next.filter(c => c.status === 'unstable').length;
-      setHistoryPoints(h => [...h, { cycle: elapsedCycles + 1, count: unstableCount }]);
-      setElapsedCycles(c => c + 1);
-
-      if (unstableCount === 0) {
-        setIsPlaying(false);
-        if (timerRef.current) clearInterval(timerRef.current);
+        newUnstable++;
       }
-
-      return next;
+      return cell;
     });
-  };
+
+    gridCellsRef.current = nextCells;
+    elapsedCyclesRef.current = nextCycle;
+
+    setGridCells(nextCells);
+    setElapsedCycles(nextCycle);
+    playLabSound('geiger');
+
+    // Guaranteed deduplication: ensure exactly ONE entry exists per cycle on X-axis
+    setHistoryPoints(prev => {
+      const filtered = prev.filter(pt => pt.cycle !== nextCycle);
+      return [...filtered, { cycle: nextCycle, count: newUnstable }].sort((a, b) => a.cycle - b.cycle);
+    });
+
+    if (newUnstable === 0) {
+      setIsPlaying(false);
+    }
+  }, []);
 
   // Play/Pause interval
   useEffect(() => {
@@ -114,9 +151,12 @@ export const RadioactiveDecay: React.FC = () => {
     }
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     };
-  }, [isPlaying, elapsedCycles]);
+  }, [isPlaying, tickCycle]);
 
   const unstableCount = gridCells.filter(c => c.status === 'unstable').length;
   const stableCount = 100 - unstableCount;
@@ -160,6 +200,7 @@ export const RadioactiveDecay: React.FC = () => {
         if (vibrationIntensityRef.current >= 5.5) {
           setSingleStatus('exploding');
           explosionTimeRef.current = 0;
+          playLabSound('geiger');
           spawnEjectedParticles(cx, cy);
         }
       }
@@ -242,24 +283,67 @@ export const RadioactiveDecay: React.FC = () => {
         ctx.fillText(activeIsotope.daughterSymbol, nx, ny + 4);
       }
 
-      // Draw Ejected Particles (Alpha / Beta / Gamma)
-      const particles = ejectedParticlesRef.current;
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life -= 0.018;
+      // Draw Radiation Shielding Barrier if active
+      const barrierX = cx + 62;
+      if (shieldType !== 'none') {
+        const barrierW = shieldType === 'paper' ? 4 : shieldType === 'aluminum' ? 9 : 16;
+        const barrierColor = shieldType === 'paper' ? '#f8fafc' : shieldType === 'aluminum' ? '#94a3b8' : '#334155';
+        const barrierBorder = shieldType === 'paper' ? '#cbd5e1' : shieldType === 'aluminum' ? '#38bdf8' : '#64748b';
 
-        if (p.life <= 0) {
-          particles.splice(i, 1);
-          continue;
+        ctx.fillStyle = barrierColor;
+        ctx.fillRect(barrierX, 34, barrierW, h - 52);
+        ctx.strokeStyle = barrierBorder;
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(barrierX, 34, barrierW, h - 52);
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 8.5px Cairo, sans-serif';
+        ctx.textAlign = 'center';
+        const shieldLabel =
+          shieldType === 'paper'
+            ? lang === 'ar' ? 'ورق' : 'Paper'
+            : shieldType === 'aluminum'
+            ? lang === 'ar' ? 'ألومنيوم' : 'Al 5mm'
+            : lang === 'ar' ? 'رصاص' : 'Lead 5cm';
+        ctx.fillText(shieldLabel, barrierX + barrierW / 2, h - 8);
+      }
+
+      // Draw Ejected Particles (Alpha / Beta / Gamma) with Shielding Collision Physics
+      const particles = ejectedParticlesRef.current;
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+
+        // Check if blocked by radiation shield barrier
+        const isStoppedByBarrier =
+          (shieldType === 'paper' && p.pType === 'alpha') ||
+          (shieldType === 'aluminum' && (p.pType === 'alpha' || p.pType === 'beta')) ||
+          (shieldType === 'lead' && (p.pType === 'alpha' || p.pType === 'beta' || p.pType === 'gamma'));
+
+        const distFromCenter = Math.sqrt((p.x - cx) * (p.x - cx) + (p.y - cy) * (p.y - cy));
+        if (distFromCenter < 115 && !p.blocked) {
+          const nextX = p.x + p.vx;
+          if (shieldType !== 'none' && isStoppedByBarrier && nextX + p.size >= barrierX) {
+            p.x = barrierX - p.size - 1;
+            p.vx = 0;
+            p.vy = 0;
+            p.blocked = true;
+          } else {
+            p.x = nextX;
+            p.y += p.vy;
+            p.vx *= 0.94;
+            p.vy *= 0.94;
+          }
         }
+
+        // Clamp securely inside canvas
+        p.x = Math.max(35, Math.min(w - 35, p.x));
+        p.y = Math.max(28, Math.min(h - 22, p.y));
 
         // Trail path
         ctx.beginPath();
         ctx.strokeStyle = p.color;
-        ctx.lineWidth = p.size * 0.7;
-        ctx.setLineDash([2, 4]);
+        ctx.lineWidth = 1.4;
+        ctx.setLineDash([3, 3]);
         ctx.moveTo(cx, cy);
         ctx.lineTo(p.x, p.y);
         ctx.stroke();
@@ -270,15 +354,51 @@ export const RadioactiveDecay: React.FC = () => {
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fillStyle = p.color;
         ctx.shadowColor = p.color;
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 10;
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Label
-        ctx.fillStyle = '#ffffff';
+        // Label Tag Box
         ctx.font = 'bold 9px Cairo, sans-serif';
         ctx.textAlign = 'center';
+        const labelW = ctx.measureText(p.label).width + 8;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+        ctx.fillRect(p.x - labelW / 2, p.y - 18, labelW, 13);
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 0.8;
+        ctx.strokeRect(p.x - labelW / 2, p.y - 18, labelW, 13);
+
+        ctx.fillStyle = '#ffffff';
         ctx.fillText(p.label, p.x, p.y - 8);
+      }
+
+      // Top Status Banner on Canvas
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
+      ctx.fillRect(6, 6, w - 12, 20);
+      ctx.strokeStyle = singleStatus === 'decayed' ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(6, 6, w - 12, 20);
+
+      ctx.font = 'bold 9.5px Cairo, sans-serif';
+      ctx.textAlign = 'center';
+      if (singleStatus === 'idle' || singleStatus === 'vibrating') {
+        ctx.fillStyle = '#f87171';
+        ctx.fillText(
+          lang === 'ar'
+            ? `النواة الأم الأصلية غير المستقرة: ${activeIsotope.name} (${activeIsotope.symbol})`
+            : `Unstable Parent Nucleus: ${activeIsotope.nameEn} (${activeIsotope.symbol})`,
+          w / 2,
+          20
+        );
+      } else {
+        ctx.fillStyle = '#34d399';
+        ctx.fillText(
+          lang === 'ar'
+            ? `تم التفكك ⬅️ تكونت: ${activeIsotope.daughterName} (${activeIsotope.daughterSymbol}) + انبعاث ${activeIsotope.decayModeAr}`
+            : `Decayed ⬅️ Formed: ${activeIsotope.daughterNameEn} (${activeIsotope.daughterSymbol}) + ${activeIsotope.decayModeEn}`,
+          w / 2,
+          20
+        );
       }
 
       singleAnimFrameRef.current = requestAnimationFrame(render);
@@ -290,28 +410,29 @@ export const RadioactiveDecay: React.FC = () => {
       isRunning = false;
       if (singleAnimFrameRef.current) cancelAnimationFrame(singleAnimFrameRef.current);
     };
-  }, [singleStatus, activeIsotope]);
+  }, [singleStatus, activeIsotope, lang, shieldType]);
 
   const spawnEjectedParticles = (cx: number, cy: number) => {
     const list: EjectedParticle[] = [];
 
     if (activeIsotope.decayMode === 'alpha') {
       // Alpha particle (He-4 nucleus)
-      const angle = (Math.random() - 0.5) * (Math.PI / 3);
+      const angle = (Math.random() - 0.5) * (Math.PI / 5);
       list.push({
         x: cx + 15,
         y: cy,
-        vx: Math.cos(angle) * 4.2,
-        vy: Math.sin(angle) * 4.2,
+        vx: Math.cos(angle) * 4.5,
+        vy: Math.sin(angle) * 4.5,
         size: 9,
         color: '#f97316',
         label: 'جسيم ألفا (⁴₂He²⁺)',
-        life: 1.0
+        life: 1.0,
+        pType: 'alpha'
       });
     } else if (activeIsotope.decayMode === 'beta') {
       // Beta particle + Antineutrino
-      const angle1 = -Math.PI / 6 + (Math.random() - 0.5) * 0.4;
-      const angle2 = Math.PI / 4 + (Math.random() - 0.5) * 0.4;
+      const angle1 = -Math.PI / 10;
+      const angle2 = Math.PI / 8;
 
       list.push({
         x: cx + 15,
@@ -321,7 +442,8 @@ export const RadioactiveDecay: React.FC = () => {
         size: 4.5,
         color: '#38bdf8',
         label: 'جسيم بيتا (e⁻)',
-        life: 1.0
+        life: 1.0,
+        pType: 'beta'
       });
 
       list.push({
@@ -332,13 +454,42 @@ export const RadioactiveDecay: React.FC = () => {
         size: 2.5,
         color: '#4ade80',
         label: 'ضديد نيوترينو (ν̄)',
-        life: 0.9
+        life: 0.9,
+        pType: 'neutrino'
+      });
+    } else if (activeIsotope.decayMode === 'positron') {
+      // Positron (e+) emission + Electron Neutrino
+      const angle1 = -Math.PI / 8;
+      const angle2 = Math.PI / 6;
+
+      list.push({
+        x: cx + 15,
+        y: cy,
+        vx: Math.cos(angle1) * 6.2,
+        vy: Math.sin(angle1) * 6.2,
+        size: 5.0,
+        color: '#ec4899',
+        label: 'بوزيترون مضاد (e⁺)',
+        life: 1.0,
+        pType: 'beta'
+      });
+
+      list.push({
+        x: cx + 15,
+        y: cy,
+        vx: Math.cos(angle2) * 7.5,
+        vy: Math.sin(angle2) * 7.5,
+        size: 2.5,
+        color: '#a855f7',
+        label: 'نيوترينو إلكتروني (νₑ)',
+        life: 0.9,
+        pType: 'neutrino'
       });
     } else {
       // Beta + Gamma photons
-      const angle1 = -Math.PI / 4;
-      const angle2 = Math.PI / 4;
-      const angle3 = Math.PI / 10;
+      const angle1 = -Math.PI / 7;
+      const angle2 = 0;
+      const angle3 = Math.PI / 7;
 
       list.push({
         x: cx + 15,
@@ -348,7 +499,8 @@ export const RadioactiveDecay: React.FC = () => {
         size: 4.5,
         color: '#38bdf8',
         label: 'جسيم بيتا (e⁻)',
-        life: 1.0
+        life: 1.0,
+        pType: 'beta'
       });
 
       list.push({
@@ -359,7 +511,8 @@ export const RadioactiveDecay: React.FC = () => {
         size: 6.0,
         color: '#eab308',
         label: 'أشعة غاما (γ)',
-        life: 1.0
+        life: 1.0,
+        pType: 'gamma'
       });
 
       list.push({
@@ -370,7 +523,8 @@ export const RadioactiveDecay: React.FC = () => {
         size: 2.5,
         color: '#4ade80',
         label: 'ضديد نيوترينو (ν̄)',
-        life: 0.85
+        life: 0.85,
+        pType: 'neutrino'
       });
     }
 
@@ -390,65 +544,159 @@ export const RadioactiveDecay: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Left: Isotope Selector & Nuclear Specs (Span 4) */}
-        <div className="lg:col-span-4 flex flex-col gap-4">
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
-            <h3 className="font-bold text-slate-200 text-base pb-2 border-b border-slate-800 flex items-center justify-between">
-              <span>اختر النظير المشع</span>
-              <Radiation className="w-4 h-4 text-emerald-400" />
-            </h3>
+    <div className="w-full space-y-6 overflow-x-hidden">
+      {/* Unified Quick Nuclear & Radiometric Scenarios Bar */}
+      <div className={`p-3.5 sm:p-4 rounded-2xl border flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-md ${
+        isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+      }`}>
+        <div className={`flex items-center gap-2 text-xs font-bold shrink-0 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+          <Sparkles className="w-4 h-4 text-cyan-400" />
+          <span>{t('تطبيقات النظائر المشعة السريعة:', 'Quick Nuclear Scenarios:')}</span>
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 text-xs font-bold no-scrollbar flex-1">
+          <button
+            onClick={() => openCurriculum(4)}
+            className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1 shrink-0 shadow-xs"
+            title={t('مرجع الكيمياء الكهربائية والطاقة من كتاب كيمياء 3', 'Electrochemistry & Energy Reference')}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>{t('مرجع كيمياء 3 (فصل 4)', 'Ch 4 Chemistry 3 Ref')}</span>
+          </button>
+          {[
+            { id: 'carbon14', label: t('🦴 تأريخ الأحافير (¹⁴C)', '🦴 Carbon Dating (¹⁴C)') },
+            { id: 'fluorine18', label: t('🧠 بوزيترون ومسح الأورام (¹⁸F)', '🧠 Positron PET (¹⁸F)') },
+            { id: 'tritium', label: t('☀️ وقود الاندماج (³H)', '☀️ Fusion Fuel (³H)') },
+            { id: 'cobalt60', label: t('🏥 علاج الأورام (⁶⁰Co)', '🏥 Cancer Therapy (⁶⁰Co)') },
+            { id: 'iodine131', label: t('🧬 الغدة الدرقية (¹³¹I)', '🧬 Thyroid Med (¹³¹I)') },
+            { id: 'americium241', label: t('🔔 كاشف الدخان (²⁴¹Am)', '🔔 Smoke Detector (²⁴¹Am)') },
+            { id: 'uranium235', label: t('⚡ وقود المفاعلات (²³⁵U)', '⚡ Reactor Fuel (²³⁵U)') },
+            { id: 'plutonium239', label: t('🛰️ طاقة الفضاء (²³⁹Pu)', '🛰️ Space Power (²³⁹Pu)') },
+            { id: 'polonium210', label: t('☢️ البولونيوم (²¹⁰Po)', '☢️ Polonium (²¹⁰Po)') },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => {
+                playLabSound('click');
+                setSelectedIsotopeId(item.id);
+              }}
+              className={`px-3 py-1.5 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1 ${
+                selectedIsotopeId === item.id
+                  ? 'bg-cyan-600 border-cyan-500 text-white shadow-sm'
+                  : isDark
+                  ? 'bg-slate-950/70 hover:bg-slate-800 border-slate-800 text-slate-300'
+                  : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+              }`}
+            >
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => {
+            launchLabExperiment('atom-builder', {
+              protons: activeIsotope.atomicNumber,
+              neutrons: activeIsotope.massNumber - activeIsotope.atomicNumber,
+              electrons: activeIsotope.atomicNumber
+            });
+          }}
+          className="px-3 py-1.5 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-700/60 text-xs font-bold text-cyan-300 transition-all flex items-center justify-center gap-1.5 shrink-0"
+        >
+          <Atom className="w-3.5 h-3.5 text-cyan-400" />
+          <span>{t('فحص النواة في بناء الذرة', 'Inspect in Atom Builder')}</span>
+        </button>
+      </div>
+
+      <div className="w-full flex flex-col md:flex-row gap-5 items-start overflow-x-hidden">
+        {/* Left: Isotope Selector & Nuclear Specs */}
+        <div className="w-full md:w-[300px] lg:w-[330px] xl:w-[340px] shrink-0 min-w-0 flex flex-col gap-4 order-2 md:order-1">
+          <div className={`border rounded-2xl p-4 sm:p-5 shadow-lg space-y-4 ${
+            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <div className={`flex items-center justify-between pb-2 border-b gap-2 ${
+              isDark ? 'border-slate-800' : 'border-slate-200'
+            }`}>
+              <h3 className={`font-bold text-base flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                <span>{t('اختر النظير المشع', 'Select Radioactive Isotope')}</span>
+              </h3>
+              <div className="flex items-center gap-1.5">
+                {onOpenGuide && (
+                  <button
+                    onClick={onOpenGuide}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
+                      isDark ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                    }`}
+                    title={t('شرح عمر النصف والإشعاع', 'Half-life & Radiation Guide')}
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{t('دليل عمر النصف', 'Guide')}</span>
+                  </button>
+                )}
+                <Radiation className="w-4 h-4 text-emerald-400" />
+              </div>
+            </div>
 
             {/* Isotope Dropdown */}
             <div className="space-y-1.5">
               <label className="text-xs text-slate-400 font-semibold block">
-                مكتبة النظائر الإشعاعية الموسعة (6 أمثلة واقعية):
+                {t(`مكتبة النظائر الإشعاعية الموسعة (${Object.keys(ISOTOPES).length} نظائر واقعية):`, `Radioactive Isotopes Library (${Object.keys(ISOTOPES).length} Real Isotopes):`)}
               </label>
               <select
                 value={selectedIsotopeId}
                 onChange={(e) => setSelectedIsotopeId(e.target.value)}
-                className="w-full py-2.5 px-3 bg-slate-950 border border-slate-700 rounded-xl text-xs sm:text-sm font-bold text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                className={`w-full py-2.5 px-3 border rounded-xl text-xs sm:text-sm font-bold focus:outline-none focus:border-emerald-500 cursor-pointer ${
+                  isDark ? 'bg-slate-950 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-300 text-slate-800'
+                }`}
               >
-                <option value="carbon14">⚛️ الكربون-14 (تأريخ الحفريات، 5,730 سنة)</option>
-                <option value="iodine131">🩺 اليود-131 (طب الغدة الدرقية، 8.02 أيام)</option>
-                <option value="radon222">💨 الرادون-222 (غاز الصخور المشع، 3.82 أيام)</option>
-                <option value="cesium137">☢️ السيزيوم-137 (المفاعلات والصناعة، 30.17 سنة)</option>
-                <option value="cobalt60">🔬 الكوبالت-60 (التعقيم وسكين غاما، 5.27 سنة)</option>
-                <option value="uranium238">🌋 اليورانيوم-238 (عمر الأرض، 4.468 مليار سنة)</option>
+                {Object.values(ISOTOPES).map(iso => (
+                  <option key={iso.id} value={iso.id}>
+                    {iso.symbol} {lang === 'ar' ? iso.name : iso.nameEn} ({lang === 'ar' ? iso.halfLifeStr : iso.halfLifeStrEn})
+                  </option>
+                ))}
               </select>
             </div>
 
             {/* Specs Card */}
-            <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 space-y-2.5 text-xs">
+            <div className={`p-3.5 rounded-xl border space-y-2.5 text-xs ${
+              isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
               <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="bg-slate-900 p-2 rounded-lg border border-slate-800/80">
-                  <span className="text-slate-400 text-[10px] block font-semibold">عمر النصف (T₁/₂)</span>
-                  <span className="font-mono font-bold text-amber-400 text-sm mt-0.5 block">
-                    {activeIsotope.halfLifeStr}
+                <div className={`p-2 rounded-lg border ${
+                  isDark ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200'
+                }`}>
+                  <span className="text-slate-400 text-[10px] block font-semibold">{t('عمر النصف (T₁/₂)', 'Half-Life (T₁/₂)')}</span>
+                  <span className="font-mono font-bold text-amber-500 text-sm mt-0.5 block">
+                    {lang === 'ar' ? activeIsotope.halfLifeStr : activeIsotope.halfLifeStrEn}
                   </span>
                 </div>
-                <div className="bg-slate-900 p-2 rounded-lg border border-slate-800/80">
-                  <span className="text-slate-400 text-[10px] block font-semibold">نمط الاضمحلال</span>
+                <div className={`p-2 rounded-lg border ${
+                  isDark ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200'
+                }`}>
+                  <span className="text-slate-400 text-[10px] block font-semibold">{t('نمط الاضمحلال', 'Decay Mode')}</span>
                   <span className="font-bold text-red-400 text-xs mt-0.5 block truncate">
-                    {activeIsotope.decayModeAr}
+                    {lang === 'ar' ? activeIsotope.decayModeAr : activeIsotope.decayModeEn}
                   </span>
                 </div>
               </div>
 
               {/* Nuclear Equation */}
-              <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-center">
+              <div className={`p-2.5 rounded-lg border text-center ${
+                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+              }`}>
                 <span className="text-slate-400 text-[10px] block font-semibold mb-1">
-                  معادلة التحول النووي (Transmutation):
+                  {t('معادلة التحول النووي (Transmutation):', 'Transmutation Nuclear Equation:')}
                 </span>
-                <span className="font-mono font-black text-cyan-300 text-sm tracking-wide">
+                <span className="font-mono font-black text-cyan-400 text-sm tracking-wide">
                   {activeIsotope.equation}
                 </span>
               </div>
 
-              <div className="text-[11px] text-slate-400 leading-relaxed pt-1 border-t border-slate-800/60">
-                <strong className="text-emerald-400">التطبيق العملي: </strong>
-                {activeIsotope.practicalUse}
+              <div className={`text-[11px] leading-relaxed pt-1 border-t ${
+                isDark ? 'text-slate-400 border-slate-800/60' : 'text-slate-600 border-slate-200'
+              }`}>
+                <strong className="text-emerald-500">{t('التطبيق العملي: ', 'Practical Application: ')}</strong>
+                {lang === 'ar' ? activeIsotope.practicalUse : activeIsotope.practicalUseEn}
               </div>
             </div>
 
@@ -464,37 +712,45 @@ export const RadioactiveDecay: React.FC = () => {
                   }`}
                 >
                   {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                  <span>{isPlaying ? 'إيقاف مؤقت' : 'بدء المحاكاة'}</span>
+                  <span>{isPlaying ? t('إيقاف مؤقت', 'Pause') : t('بدء المحاكاة', 'Start Simulation')}</span>
                 </button>
 
                 <button
                   onClick={tickCycle}
                   disabled={isPlaying || unstableCount === 0}
-                  className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
+                  className={`py-2.5 px-3 disabled:opacity-40 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
+                    isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-200' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                  }`}
                 >
                   <SkipForward className="w-3.5 h-3.5" />
-                  <span>خطوة (عمر نصف)</span>
+                  <span>{t('خطوة (عمر نصف)', 'Step (1 Half-life)')}</span>
                 </button>
               </div>
 
               <button
                 onClick={initSimulation}
-                className="w-full py-2 px-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all"
+                className={`w-full py-2 px-3 border rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all ${
+                  isDark ? 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                }`}
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>إعادة تعيين 100 نواة مشعة</span>
+                <span>{t('إعادة تعيين 100 نواة مشعة', 'Reset 100 Nuclei')}</span>
               </button>
             </div>
           </div>
 
           {/* Single Nucleus Disintegration Experiment */}
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3">
-            <h4 className="font-bold text-slate-200 text-sm flex items-center justify-between pb-2 border-b border-slate-800">
-              <span>مختبر اضمحلال نواة مفردة</span>
+          <div className={`border rounded-2xl p-4 sm:p-5 shadow-lg space-y-3 ${
+            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <h4 className={`font-bold text-sm flex items-center justify-between pb-2 border-b ${
+              isDark ? 'text-slate-200 border-slate-800' : 'text-slate-900 border-slate-200'
+            }`}>
+              <span>{t('مختبر اضمحلال نواة مفردة', 'Single Nucleus Chamber')}</span>
               <Microscope className="w-4 h-4 text-cyan-400" />
             </h4>
-            <p className="text-[11px] text-slate-400">
-              انقر لإثارة نواة واحدة ومشاهدة تحللها اللحظي إلى النواة الابنة مع إطلاق الإشعاع:
+            <p className="text-[11px] text-slate-400 leading-tight">
+              {t('انقر لإثارة نواة واحدة ومشاهدة تحللها اللحظي إلى النواة الابنة مع إطلاق الإشعاع:', 'Click to trigger spontaneous single nucleus disintegration and emission:')}
             </p>
 
             {/* Canvas Box */}
@@ -507,6 +763,53 @@ export const RadioactiveDecay: React.FC = () => {
               />
             </div>
 
+            {/* Radiation Shielding & Penetration Tester Controls */}
+            <div className={`p-2.5 rounded-xl border space-y-2 ${
+              isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold text-cyan-400 flex items-center gap-1">
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>{t('اختبار اختراق الدروع الواقية:', 'Radiation Shielding Test:')}</span>
+                </span>
+                <span className="font-mono text-[10px] text-slate-400">
+                  {shieldType === 'none'
+                    ? t('نفاذ كامل 100%', '100% Penetration')
+                    : (shieldType === 'paper' && activeIsotope.decayMode === 'alpha') ||
+                      (shieldType === 'aluminum' && (activeIsotope.decayMode === 'alpha' || activeIsotope.decayMode === 'beta')) ||
+                      shieldType === 'lead'
+                    ? t('🛡️ تم حجب الإشعاع!', '🛡️ Radiation Blocked!')
+                    : t('⚠️ يخترق هذا الحاجز!', '⚠️ Penetrates Shield!')}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1 text-[10px] font-bold">
+                {[
+                  { id: 'none' as const, label: t('بدون حاجز', 'None') },
+                  { id: 'paper' as const, label: t('ورق (يحجب α)', 'Paper (α)') },
+                  { id: 'aluminum' as const, label: t('ألومنيوم (β)', 'Alum (β)') },
+                  { id: 'lead' as const, label: t('رصاص (γ)', 'Lead (γ)') },
+                ].map(sh => (
+                  <button
+                    key={sh.id}
+                    type="button"
+                    onClick={() => {
+                      playLabSound('click');
+                      setShieldType(sh.id);
+                    }}
+                    className={`py-1.5 px-1 rounded-lg border transition-all text-center truncate ${
+                      shieldType === sh.id
+                        ? 'bg-cyan-600 border-cyan-500 text-white shadow-xs'
+                        : isDark
+                        ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                        : 'bg-white border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {sh.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-2 pt-1">
               <button
                 onClick={triggerSingleDecay}
@@ -514,29 +817,126 @@ export const RadioactiveDecay: React.FC = () => {
                 className="py-2 px-3 bg-red-950/40 hover:bg-red-900/40 border border-red-900/50 text-red-400 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all"
               >
                 <Zap className="w-3.5 h-3.5" />
-                <span>إثارة النواة واضمحلالها</span>
+                <span>{t('إثارة النواة واضمحلالها', 'Trigger Decay')}</span>
               </button>
 
               <button
                 onClick={resetSingleDecay}
-                className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-all"
+                className={`py-2 px-3 font-semibold text-xs rounded-xl transition-all ${
+                  isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                }`}
               >
-                إعادة النواة الأصلية
+                {t('إعادة النواة الأصلية', 'Restore Nucleus')}
               </button>
+            </div>
+
+            {/* Decayed Materials Breakdown Panel (تقرير بيان المواد التي تفككت والجسيمات الناتجة) */}
+            <div className={`p-3.5 rounded-xl border space-y-2.5 text-xs ${
+              isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+                <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>{t('بيان المواد التي تفككت والتحول النووي:', 'Decayed Materials & Transmutation Breakdown:')}</span>
+                </span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                  singleStatus === 'decayed'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                }`}>
+                  {singleStatus === 'decayed' ? t('تم التفكك بنجاح', 'Decay Complete') : t('جاهزة للتفكك', 'Ready for Decay')}
+                </span>
+              </div>
+
+              {/* Transformation Comparison Grid */}
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                {/* Parent Material */}
+                <div className="p-2.5 rounded-lg bg-red-950/30 border border-red-800/40 space-y-1">
+                  <span className="text-[10px] font-bold text-red-400 block">{t('🔴 المادة الأصلية (Parent):', '🔴 Parent Isotope:')}</span>
+                  <div className="font-bold text-white text-xs">{lang === 'ar' ? activeIsotope.name : activeIsotope.nameEn}</div>
+                  <div className="font-mono text-cyan-300 font-bold">{activeIsotope.symbol}</div>
+                  <div className="text-[10px] text-slate-400">
+                    p⁺ = {activeIsotope.atomicNumber} | n⁰ = {activeIsotope.massNumber - activeIsotope.atomicNumber}
+                  </div>
+                  <div className="text-[9px] text-red-300 font-semibold">{t('نواة مشعة غير مستقرة', 'Radioactive')}</div>
+                </div>
+
+                {/* Daughter Material */}
+                <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-800/40 space-y-1">
+                  <span className="text-[10px] font-bold text-emerald-400 block">{t('🟢 المادة الناتجة (Daughter):', '🟢 Daughter Isotope:')}</span>
+                  <div className="font-bold text-white text-xs">{lang === 'ar' ? activeIsotope.daughterName : activeIsotope.daughterNameEn}</div>
+                  <div className="font-mono text-emerald-300 font-bold">{activeIsotope.daughterSymbol}</div>
+                  <div className="text-[10px] text-slate-400">
+                    p⁺ = {activeIsotope.daughterAtomic} | n⁰ = {activeIsotope.daughterMass - activeIsotope.daughterAtomic}
+                  </div>
+                  <div className="text-[9px] text-emerald-300 font-semibold">{t('نواة وليدة مستقرة تماماً', 'Stable Daughter')}</div>
+                </div>
+              </div>
+
+              {/* Emitted Radiation Particles */}
+              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
+                <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
+                  <Zap className="w-3 h-3 text-amber-400" />
+                  <span>{t('⚡ الإشعاع والجسيمات المنبعثة المقذوفة:', '⚡ Ejected Radiation & Quanta:')}</span>
+                </span>
+                <p className="text-[11px] text-slate-300 leading-tight">
+                  {lang === 'ar' ? activeIsotope.emittedParticleDesc : activeIsotope.emittedParticleDescEn}
+                </p>
+              </div>
+
+              {/* Nuclear Equation */}
+              <div className="p-2 rounded-lg bg-slate-900/90 border border-cyan-800/50 flex items-center justify-between font-mono text-xs">
+                <span className="text-slate-400 text-[10px]">{t('المعادلة النووية:', 'Nuclear Eq:')}</span>
+                <span className="text-cyan-300 font-extrabold tracking-wide">{activeIsotope.equation}</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Middle: 100 Nuclei Stochastic Grid (Span 5) */}
-        <div className="lg:col-span-5 flex flex-col gap-4">
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
+        {/* Main Simulation Stage & Decay Curves */}
+        <div className="w-full flex-1 min-w-0 flex flex-col xl:flex-row gap-5 order-1 md:order-2">
+          {/* Middle: 100 Nuclei Stochastic Grid */}
+          <div className="w-full xl:flex-1 min-w-0 flex flex-col gap-4">
+          <div className={`border rounded-2xl p-4 sm:p-5 shadow-lg space-y-4 ${
+            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-200 text-base">
-                شبكة النوى المشعة (100 نواة)
+              <h3 className={`font-bold text-base ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                {t('شبكة النوى المشعة (100 نواة)', 'Radioactive Grid (100 Nuclei)')}
               </h3>
               <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-950/60 border border-cyan-800 px-2 py-0.5 rounded">
-                الدورة: {elapsedCycles} ({realElapsedTime} {activeIsotope.timeUnit})
+                {t('الدورة:', 'Cycle:')} {elapsedCycles} ({realElapsedTime} {t(activeIsotope.timeUnit, 'units')})
               </span>
+            </div>
+
+            {/* Live Dual-Material Composition Bar (شريط نسبة تحول المواد الحية) */}
+            <div className="space-y-1.5 p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-red-400 flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm shadow-red-500" />
+                  <span>{lang === 'ar' ? activeIsotope.name : activeIsotope.nameEn} ({activeIsotope.symbol}): {unstableCount}%</span>
+                </span>
+                <span className="text-emerald-400 flex items-center gap-1.5">
+                  <span>{lang === 'ar' ? activeIsotope.daughterName : activeIsotope.daughterNameEn} ({activeIsotope.daughterSymbol}): {stableCount}%</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500" />
+                </span>
+              </div>
+              <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden flex shadow-inner">
+                <div
+                  className="h-full bg-red-500 transition-all duration-500"
+                  style={{ width: `${unstableCount}%` }}
+                  title={`${unstableCount}% ${activeIsotope.name}`}
+                />
+                <div
+                  className="h-full bg-emerald-500 transition-all duration-500"
+                  style={{ width: `${stableCount}%` }}
+                  title={`${stableCount}% ${activeIsotope.daughterName}`}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                <span>{t('المادة المشعة الأصلية المتبقية', 'Remaining Parent Material')}</span>
+                <span>{t('المادة المستقرة الناتجة عن التفكك', 'Transmuted Daughter Material')}</span>
+              </div>
             </div>
 
             {/* 10x10 Grid of 100 atoms */}
@@ -548,8 +948,8 @@ export const RadioactiveDecay: React.FC = () => {
                     key={cell.id}
                     title={
                       isUnstable
-                        ? `نواة ${activeIsotope.name} غير مستقرة`
-                        : `نواة ${activeIsotope.daughterName} مستقرة ناتجة في الدورة ${cell.decayCycle}`
+                        ? `${activeIsotope.name} (${activeIsotope.symbol}) ${t('لم تتفكك بعد', 'unstable')}`
+                        : `${activeIsotope.daughterName} (${activeIsotope.daughterSymbol}) ${t('تفككت واستقرت في الدورة', 'stable formed in cycle')} ${cell.decayCycle}`
                     }
                     className={`aspect-square rounded-full transition-all duration-700 flex items-center justify-center ${
                       isUnstable
@@ -561,126 +961,218 @@ export const RadioactiveDecay: React.FC = () => {
               })}
             </div>
 
-            {/* Live Percentages */}
+            {/* Live Percentages with Explicit Element Names */}
             <div className="grid grid-cols-2 gap-3 text-center">
               <div className="bg-red-950/20 border border-red-900/40 p-3 rounded-xl">
-                <span className="text-xs text-slate-400 block font-semibold mb-1">
-                  النسبة المشعة المتبقية
+                <span className="text-xs text-red-300 block font-bold mb-1">
+                  🔴 {lang === 'ar' ? activeIsotope.name : activeIsotope.nameEn} ({activeIsotope.symbol})
                 </span>
                 <span className="font-mono text-2xl font-black text-red-400">
                   {unstableCount}%
                 </span>
-                <span className="text-[10px] text-slate-500 block mt-0.5 font-mono">
-                  {unstableCount} من 100 نواة
+                <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">
+                  {unstableCount} / 100 {t('ذرة لم تتفكك بعد', 'nuclei remaining')}
                 </span>
               </div>
 
               <div className="bg-emerald-950/20 border border-emerald-900/40 p-3 rounded-xl">
-                <span className="text-xs text-slate-400 block font-semibold mb-1">
-                  النسبة المستقرة المتكونة
+                <span className="text-xs text-emerald-300 block font-bold mb-1">
+                  🟢 {lang === 'ar' ? activeIsotope.daughterName : activeIsotope.daughterNameEn} ({activeIsotope.daughterSymbol})
                 </span>
                 <span className="font-mono text-2xl font-black text-emerald-400">
                   {stableCount}%
                 </span>
-                <span className="text-[10px] text-slate-500 block mt-0.5 font-mono">
-                  {stableCount} من 100 نواة
+                <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">
+                  {stableCount} / 100 {t('ذرة تفككت وتحولت كلياً', 'daughters formed')}
                 </span>
               </div>
             </div>
 
+            {/* Accumulated Radiation Quanta Counter */}
+            <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-800/40 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+                <div>
+                  <span className="font-bold text-amber-300 block">
+                    {t('إجمالي الجسيمات الإشعاعية المنبعثة في الوسط:', 'Total Ejected Radioactive Particles:')}
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    {lang === 'ar' ? activeIsotope.emittedParticleDesc : activeIsotope.emittedParticleDescEn}
+                  </span>
+                </div>
+              </div>
+              <span className="text-xl font-mono font-black text-amber-400 shrink-0">
+                +{stableCount}
+              </span>
+            </div>
+
             {/* Explanation on Stochastic Behavior */}
-            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 text-xs text-slate-300 leading-relaxed">
+            <div className={`p-3 rounded-xl border text-xs leading-relaxed ${
+              isDark ? 'bg-slate-950/40 border-slate-800/80 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+            }`}>
               <p>
-                💡 <strong>الطبيعة الاحتمالية:</strong> تحلل أي نواة فردية محددة هو حدث كمي عشوائي تماماً لا يمكن التنبؤ بلحظة حدوثه بدقة. لكن عند اجتماع عدد كبير من النوى (كما في هذه المئة)، يظهر قانون نصف العمر الإحصائي الدقيق (كل دورة ينخفض العدد للنصف تقريباً).
+                💡 <strong>{t('الطبيعة الاحتمالية:', 'Stochastic Nature:')}</strong> {t(
+                  'تحلل أي نواة فردية محددة هو حدث كمي عشوائي تماماً لا يمكن التنبؤ بلحظة حدوثه بدقة. لكن عند اجتماع عدد كبير من النوى، يظهر قانون نصف العمر الإحصائي الدقيق.',
+                  'Decay of an individual nucleus is completely random and unpredictable. With a large sample, the exact statistical half-life rule emerges.'
+                )}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Right: Exponential Decay Chart & Scientific Insights (Span 3) */}
-        <div className="lg:col-span-3 flex flex-col gap-4">
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
-            <h3 className="font-bold text-slate-200 text-base pb-2 border-b border-slate-800 flex items-center justify-between">
-              <span>منحنى الاضمحلال الأسي</span>
+          {/* Right: Exponential Decay Chart & Scientific Insights */}
+          <div className="w-full xl:w-[310px] shrink-0 min-w-0 flex flex-col gap-4">
+          <div className={`border rounded-2xl p-4 sm:p-5 shadow-lg space-y-4 ${
+            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <h3 className={`font-bold text-base pb-2 border-b flex items-center justify-between ${
+              isDark ? 'text-slate-200 border-slate-800' : 'text-slate-900 border-slate-200'
+            }`}>
+              <span>{t('منحنى الاضمحلال الأسي', 'Decay Curve')}</span>
               <TrendingDown className="w-4 h-4 text-cyan-400" />
             </h3>
 
             {/* Custom SVG Exponential Decay Chart */}
             <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex flex-col items-center">
-              <svg viewBox="0 0 240 140" className="w-full h-36 overflow-visible">
-                {/* Axes */}
-                <line x1="28" y1="10" x2="28" y2="120" stroke="#334155" strokeWidth="1.5" />
-                <line x1="28" y1="120" x2="230" y2="120" stroke="#334155" strokeWidth="1.5" />
+              {(() => {
+                const maxCycles = Math.max(5, elapsedCycles);
+                const plotXStart = 40;
+                const plotXEnd = 236;
+                const plotYTop = 14;
+                const plotYBottom = 118;
+                const plotW = plotXEnd - plotXStart;
+                const plotH = plotYBottom - plotYTop;
 
-                {/* Grid horizontal ticks */}
-                <line x1="25" y1="10" x2="28" y2="10" stroke="#64748b" />
-                <text x="22" y="14" fill="#64748b" fontSize="8" textAnchor="end" fontFamily="IBM Plex Mono">100%</text>
+                // Mathematical theoretical curve: N(t) = 100 * (0.5)^t
+                const theoreticalPath = Array.from({ length: 61 }, (_, i) => {
+                  const t = (i / 60) * maxCycles;
+                  const count = 100 * Math.pow(0.5, t);
+                  const x = plotXStart + (t / maxCycles) * plotW;
+                  const y = plotYBottom - (count / 100) * plotH;
+                  return `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+                }).join(' ');
 
-                <line x1="25" y1="65" x2="28" y2="65" stroke="#64748b" />
-                <text x="22" y="69" fill="#64748b" fontSize="8" textAnchor="end" fontFamily="IBM Plex Mono">50%</text>
+                // Simulated line connecting points
+                const simulationPath = historyPoints.length > 1
+                  ? historyPoints.map((pt, idx) => {
+                      const x = plotXStart + (pt.cycle / maxCycles) * plotW;
+                      const y = plotYBottom - (pt.count / 100) * plotH;
+                      return `${idx === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+                    }).join(' ')
+                  : '';
 
-                <line x1="25" y1="92" x2="28" y2="92" stroke="#64748b" />
-                <text x="22" y="96" fill="#64748b" fontSize="8" textAnchor="end" fontFamily="IBM Plex Mono">25%</text>
+                return (
+                  <svg viewBox="0 0 250 145" className="w-full h-36 overflow-visible">
+                    {/* Background horizontal dashed guides */}
+                    <line x1={plotXStart} y1="14" x2={plotXEnd} y2="14" stroke="#1e293b" strokeDasharray="3 3" strokeWidth="1" />
+                    <line x1={plotXStart} y1="66" x2={plotXEnd} y2="66" stroke="#1e293b" strokeDasharray="3 3" strokeWidth="1" />
+                    <line x1={plotXStart} y1="92" x2={plotXEnd} y2="92" stroke="#1e293b" strokeDasharray="3 3" strokeWidth="1" />
 
-                {/* Theoretical Curve (Dashed blue line) */}
-                <path
-                  d="M 28 10 Q 75 75, 125 98 T 225 118"
-                  fill="none"
-                  stroke="rgba(56, 189, 248, 0.4)"
-                  strokeWidth="1.5"
-                  strokeDasharray="3 3"
-                />
+                    {/* Axes lines */}
+                    <line x1={plotXStart} y1="10" x2={plotXStart} y2={plotYBottom} stroke="#334155" strokeWidth="1.5" />
+                    <line x1={plotXStart} y1={plotYBottom} x2={plotXEnd} y2={plotYBottom} stroke="#334155" strokeWidth="1.5" />
 
-                {/* Simulated Data Points line */}
-                {historyPoints.length > 1 && (
-                  <path
-                    d={historyPoints.map((pt, idx) => {
-                      const maxCycles = Math.max(5, elapsedCycles);
-                      const x = 28 + (pt.cycle / maxCycles) * (220 - 28);
-                      const y = 120 - (pt.count / 100) * 110;
-                      return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
-                    }).join(' ')}
-                    fill="none"
-                    stroke="#ef4444"
-                    strokeWidth="2.5"
-                  />
-                )}
+                    {/* Y-axis Ticks & Unclipped Percentage Labels */}
+                    <line x1={plotXStart - 4} y1="14" x2={plotXStart} y2="14" stroke="#64748b" strokeWidth="1.2" />
+                    <text x={plotXStart - 6} y="17" fill="#64748b" fontSize="8" textAnchor="end" fontFamily="IBM Plex Mono, monospace" fontWeight="600">100%</text>
 
-                {/* Points markers */}
-                {historyPoints.map((pt) => {
-                  const maxCycles = Math.max(5, elapsedCycles);
-                  const x = 28 + (pt.cycle / maxCycles) * (220 - 28);
-                  const y = 120 - (pt.count / 100) * 110;
-                  return (
-                    <circle
-                      key={pt.cycle}
-                      cx={x}
-                      cy={y}
-                      r="3"
-                      fill="#ef4444"
-                      stroke="#ffffff"
-                      strokeWidth="1"
+                    <line x1={plotXStart - 4} y1="66" x2={plotXStart} y2="66" stroke="#64748b" strokeWidth="1.2" />
+                    <text x={plotXStart - 6} y="69" fill="#64748b" fontSize="8" textAnchor="end" fontFamily="IBM Plex Mono, monospace" fontWeight="600">50%</text>
+
+                    <line x1={plotXStart - 4} y1="92" x2={plotXStart} y2="92" stroke="#64748b" strokeWidth="1.2" />
+                    <text x={plotXStart - 6} y="95" fill="#64748b" fontSize="8" textAnchor="end" fontFamily="IBM Plex Mono, monospace" fontWeight="600">25%</text>
+
+                    <line x1={plotXStart - 4} y1={plotYBottom} x2={plotXStart} y2={plotYBottom} stroke="#64748b" strokeWidth="1.2" />
+                    <text x={plotXStart - 6} y={plotYBottom + 3} fill="#64748b" fontSize="8" textAnchor="end" fontFamily="IBM Plex Mono, monospace" fontWeight="600">0%</text>
+
+                    {/* X-axis Ticks & Integer Cycle Numbers */}
+                    {Array.from({ length: maxCycles + 1 }, (_, c) => {
+                      const x = plotXStart + (c / maxCycles) * plotW;
+                      return (
+                        <g key={c}>
+                          <line x1={x} y1={plotYBottom} x2={x} y2={plotYBottom + 3.5} stroke="#475569" strokeWidth="1" />
+                          <text
+                            x={x}
+                            y={plotYBottom + 13}
+                            fill="#64748b"
+                            fontSize="7.5"
+                            textAnchor="middle"
+                            fontFamily="IBM Plex Mono, monospace"
+                          >
+                            {c}
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Exact Theoretical Curve: N(t) = 100 * (0.5)^t */}
+                    <path
+                      d={theoreticalPath}
+                      fill="none"
+                      stroke="rgba(56, 189, 248, 0.75)"
+                      strokeWidth="1.75"
+                      strokeDasharray="4 3"
                     />
-                  );
-                })}
-              </svg>
 
-              <div className="w-full flex justify-between px-2 pt-1 text-[9px] text-slate-500 font-mono">
-                <span>0 دورات</span>
-                <span className="text-cyan-400">--- الخط النظري</span>
-                <span className="text-red-400">━ المحاكاة الحية</span>
+                    {/* Simulated Data Points line */}
+                    {simulationPath && (
+                      <path
+                        d={simulationPath}
+                        fill="none"
+                        stroke="#ef4444"
+                        strokeWidth="2.5"
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                      />
+                    )}
+
+                    {/* Simulated Data Points markers */}
+                    {historyPoints.map((pt) => {
+                      const x = plotXStart + (pt.cycle / maxCycles) * plotW;
+                      const y = plotYBottom - (pt.count / 100) * plotH;
+                      return (
+                        <circle
+                          key={pt.cycle}
+                          cx={x}
+                          cy={y}
+                          r="3.5"
+                          fill="#ef4444"
+                          stroke="#ffffff"
+                          strokeWidth="1.5"
+                        />
+                      );
+                    })}
+                  </svg>
+                );
+              })()}
+
+              <div className="w-full flex items-center justify-between px-2 pt-2 text-[10px] font-mono border-t border-slate-900 mt-1">
+                <span className="text-slate-400">⏱️ {t('الدورات (t)', 'Cycles (t)')}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-cyan-400 flex items-center gap-1.5">
+                    <span className="inline-block w-4 border-b-2 border-dashed border-cyan-400" />
+                    <span>{t('الخط النظري N(t)', 'Theory N(t)')}</span>
+                  </span>
+                  <span className="text-red-400 flex items-center gap-1.5 font-bold">
+                    <span className="inline-block w-3.5 h-1 bg-red-500 rounded-full" />
+                    <span>{t('المحاكاة الحية', 'Simulation')}</span>
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* Educational Science Card */}
-            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 text-xs text-slate-300 leading-relaxed space-y-1.5">
-              <h5 className="font-bold text-slate-200 flex items-center gap-1.5">
+            <div className={`p-3 rounded-xl border text-xs leading-relaxed space-y-1.5 ${
+              isDark ? 'bg-slate-950/40 border-slate-800/80 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+            }`}>
+              <h5 className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                 <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
-                <span>عن {activeIsotope.name}:</span>
+                <span>{lang === 'ar' ? `عن ${activeIsotope.name}:` : `About ${activeIsotope.nameEn}:`}</span>
               </h5>
-              <p>{activeIsotope.scienceDesc}</p>
+              <p>{lang === 'ar' ? activeIsotope.scienceDesc : activeIsotope.scienceDescEn}</p>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>
