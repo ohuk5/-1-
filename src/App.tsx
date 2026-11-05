@@ -15,6 +15,7 @@ import { GuideModal } from './components/GuideModal';
 import { CurriculumReferenceModal } from './components/CurriculumReferenceModal';
 import { ChemistryCalculatorModal } from './components/ChemistryCalculatorModal';
 import { FloatingQuickGuide } from './components/FloatingQuickGuide';
+import { ScientificChatModal } from './components/ScientificChatModal';
 import { AppProvider, useApp } from './context/AppContext';
 
 function MainAppContent() {
@@ -33,7 +34,11 @@ function MainAppContent() {
     calculatorTab,
     openCalculator,
     closeCalculator,
-    setCurriculumExperimentToLaunch
+    setCurriculumExperimentToLaunch,
+    isChatOpen,
+    closeChat,
+    chatInitialQuery,
+    chatRolePreset
   } = useApp();
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
   const [guideCategory, setGuideCategory] = useState<'basics' | 'states' | 'atoms' | 'decay' | 'missions'>('basics');
@@ -149,6 +154,14 @@ function MainAppContent() {
         isOpen={isCalculatorOpen}
         onClose={closeCalculator}
         initialTab={calculatorTab}
+      />
+
+      {/* Multi-Turn AI Science Q&A Chatbot Modal (Gemini 3.8 Flash & 3.1 Flash Lite) */}
+      <ScientificChatModal
+        isOpen={isChatOpen}
+        onClose={closeChat}
+        initialQuery={chatInitialQuery}
+        initialRole={chatRolePreset}
       />
 
       {/* Persistent Intuitive Floating Quick Guide */}

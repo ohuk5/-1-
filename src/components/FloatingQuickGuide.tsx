@@ -301,7 +301,7 @@ export const FloatingQuickGuide: React.FC = () => {
       num: '01',
       titleAr: 'قوانين الغازات والموائع وقاعدة أرخميدس',
       titleEn: 'Gas Laws & Archimedes Buoyancy',
-      shortAr: 'الغازات والموائع والطفو',
+      shortAr: 'الغازات والموائع',
       shortEn: 'Gas & Fluids',
       icon: <Wind className="w-4 h-4 text-cyan-400" />,
       goalAr: 'استكشاف قوانين بويل وشارل وغاي-لوساك وتصادمات الجسيمات المرنة، مع حوض الموائع لاختبار قوى الطفو وكثافة الأجسام.',
@@ -322,7 +322,7 @@ export const FloatingQuickGuide: React.FC = () => {
       num: '02',
       titleAr: 'الكهرباء الساكنة وحقول كولوم',
       titleEn: 'Electrostatics & Coulomb Fields',
-      shortAr: 'الكهرباء الساكنة وكولوم',
+      shortAr: 'الكهرباء الساكنة',
       shortEn: 'Electrostatics',
       icon: <Zap className="w-4 h-4 text-purple-400" />,
       goalAr: 'محاكاة قانون كولوم وحساب القوة المتبادلة ورسم متجهات المجال الكهربائي والجهد وإطلاق شحنات اختبارية.',
@@ -343,7 +343,7 @@ export const FloatingQuickGuide: React.FC = () => {
       num: '03',
       titleAr: 'البصريات والظاهرة الكهروضوئية والكم',
       titleEn: 'Optics & Photoelectric Effect',
-      shortAr: 'البصريات والكم والكهروضوئية',
+      shortAr: 'البصريات والكم',
       shortEn: 'Optics & Quantum',
       icon: <Orbit className="w-4 h-4 text-amber-400" />,
       goalAr: 'محاكاة تجربة أينشتاين للظاهرة الكهروضوئية، دالة الشغل للمعادن، جهد الإيقاف، وأطياف الانبعاث الذري للغازات.',
@@ -369,8 +369,8 @@ export const FloatingQuickGuide: React.FC = () => {
 
   return (
     <>
-      {/* Floating Trigger Badge */}
-      <div className="fixed bottom-5 rtl:left-5 ltr:right-5 z-40 print:hidden">
+      {/* Floating Trigger Badge - Anchored on the LEFT side away from Netlify's bottom-right badge */}
+      <div className="fixed bottom-6 left-6 z-40 print:hidden">
         {!isOpen ? (
           <button
             type="button"
@@ -380,7 +380,7 @@ export const FloatingQuickGuide: React.FC = () => {
                 ? 'bg-slate-900/90 hover:bg-slate-800 border-cyan-500/40 text-white shadow-cyan-950/40'
                 : 'bg-white hover:bg-slate-50 border-cyan-500/50 text-slate-900 shadow-cyan-500/20'
             }`}
-            title={t('فتح دليل الاستعمال السريع القابل للسحب', 'Open Draggable Quick Guide')}
+            title={t('فتح دليل الاستعمال السريع القابل للسحب (مبتعد عن شعار Netlify)', 'Open Draggable Quick Guide')}
           >
             <div className="relative">
               {currentDomain === 'physics' ? (
@@ -417,7 +417,7 @@ export const FloatingQuickGuide: React.FC = () => {
               : undefined
           }
           className={`${
-            !position ? 'fixed bottom-5 rtl:left-5 ltr:right-5 z-50' : ''
+            !position ? 'fixed bottom-20 left-6 z-50' : ''
           } w-[92vw] sm:w-[440px] rounded-3xl border shadow-2xl backdrop-blur-2xl flex flex-col overflow-hidden transition-shadow select-none ${
             isDark
               ? 'bg-slate-900/95 border-cyan-500/40 text-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.8)]'
@@ -528,8 +528,8 @@ export const FloatingQuickGuide: React.FC = () => {
                   : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
               }`}
             >
-              <Zap className="w-3.5 h-3.5" />
-              <span>{t('محطات الفيزياء (4)', 'Physics (4)')}</span>
+              <Orbit className="w-3.5 h-3.5" />
+              <span>{t('محطات الفيزياء (3)', 'Physics (3)')}</span>
             </button>
           </div>
 

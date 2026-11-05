@@ -20,6 +20,69 @@ async function startServer() {
   // Initialize Gemini AI Client
   const ai = new GoogleGenAI();
 
+  // Multi-Turn Gemini Q&A Chatbot Endpoint
+  app.post('/api/chat', async (req, res) => {
+    try {
+      const { messages, systemRole, model = 'gemini-3.8-flash' } = req.body;
+      if (!messages || !Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ error: 'Messages array is required' });
+      }
+
+      // Allowed models as per gemini-api guidelines
+      const validModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-4-argon'];
+      const chosenModel = validModels.includes(model) ? model : 'gemini-3.8-flash';
+
+      // System Instructions based on user selected role
+      const defaultInstruction = `أنت "المساعد العلمي الذكي للأسئلة والاستفسارات" في منصة المختبر العلمي التفاعلي (Interactive Science Lab).
+أنت معلم وخبير في مادتي الكيمياء والفيزياء:
+1. تجيب على جميع استفسارات وأسئلة الطلاب بدقة بالغة وبأسلوب علمي تربوي مشجع وواضح.
+2. تشرح قوانين الغازات والديناميكا، الطفو، الكهرومغناطيسية، البصريات، الكم، بناء الذرة، الروابط الكيميائية، حالات المادة، النشاط الإشعاعي، وكيمياء المحاليل الكهربائية.
+3. عند حل أي مسألة: اكتب المعطيات بوضوح، ثم القانون العلمي، ثم خطوات التعويض الرياضي التفصيلي بالوحدات الدولية، وأخيراً الناتج النهائي.
+4. استخدم لغة عربية علمية فصيحة وسلسة (أو الإنجليزية إذا كانت لغة السؤال بالإنجليزية).
+5. نسق إجاباتك بنقاط واضحة وخطوات مرقمة لتسهيل الفهم والمذاكرة.`;
+
+      const roleInstructions: Record<string, string> = {
+        chemistry: `أنت "معلم الكيمياء الخبير" في المختبر العلمي التفاعلي. تخصصك العميق في منهاج كيمياء 3، الجدول الدوري (1-118)، الروابط التساهمية والأيونية، الكيمياء الكهربائية وجهود الاختزال، التخفيف، وحسابات pH وموازنة المعادلات الكيميائية بطريقة نصف التفاعل. اجعل إجاباتك دقيقة وتطبيقية.`,
+        physics: `أنت "معلم الفيزياء الخبير" في المختبر العلمي التفاعلي. تخصصك العميق في قوانين الغازات (بويل، شارل، غاي-لوساك، والغاز المثالي)، ديناميكا الموائع وقاعدة أرخميدس، قانون كولوم والمجالات الكهروستاتيكية، والبصريات والظاهرة الكهروضوئية وأطياف الانبعاث. اشرح المفاهيم الفيزيائية مع ربطها بالمحاكيات التفاعلية.`,
+        problem_solver: `أنت "محلل المسائل والخطوات الرياضية" (Step-by-Step Problem Solver). مهمتك تفكيك أي مسألة كيميائية أو فيزيائية إلى:
+1) المعطيات والمجهول المطلوب.
+2) القانون الرياضي المناسب مع توضيح دلالات الرموز.
+3) خطوات التحويل والتعويض العددي بدقة خطوة بخطوة.
+4) الناتج النهائي مع وحدة القياس الصحيحة.`,
+        quiz_master: `أنت "المدرّب ومسؤول الاختبارات العلمية" (Quiz Master). اطرح على الطالب أسئلة وتحديات علمية تفاعلية شيقة (اختيار من متعدد، صح وخطأ، أو مسائل قصيرة)، وانتظر إجابته أو قدم له التفسير العلمي الفوري لتعزيز مهاراته.`,
+      };
+
+      const systemInstruction = roleInstructions[systemRole] || defaultInstruction;
+
+      // Transform chat history for @google/genai
+      const contents = messages.map((m: { role: string; content: string }) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
+
+      const response = await ai.models.generateContent({
+        model: chosenModel,
+        contents,
+        config: {
+          systemInstruction,
+        }
+      });
+
+      const reply = response.text || '';
+      return res.json({ reply });
+    } catch (err: any) {
+      console.error('Error in /api/chat with Gemini:', err?.message || err);
+      const lastMsg = req.body?.messages?.[req.body.messages.length - 1]?.content || '';
+      return res.status(200).json({
+        reply: `أهلاً بك! لقد استلمت سؤالك: "${lastMsg.slice(0, 70)}...".
+المساعد العلمي التفاعلي متاح لمساعدتك في أي مسألة كيميائية أو فيزيائية.
+• يمكنك استخدام حاسبة القوانين المدمجة في الشريط العلوي لحساب أي قانون فوراً.
+• أو الاستعانة بمرجع كتاب كيمياء 3 ومحطات المحاكاة الفيزيائية لاستعراض الحلول التفصيلية.`,
+        isFallback: true
+      });
+    }
+  });
+
   // Search Grounding API endpoint
   app.post('/api/search', async (req, res) => {
     try {

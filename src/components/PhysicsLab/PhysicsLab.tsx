@@ -1,6 +1,6 @@
 import React from 'react';
-import { Wind, Zap, Orbit, Calculator } from 'lucide-react';
-import { useApp, PhysicsStationId } from '../../context/AppContext';
+import { Wind, Zap, Orbit } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
 import { GasThermodynamicsSim } from './GasThermodynamicsSim';
 import { ElectrostaticsSim } from './ElectrostaticsSim';
 import { OpticsQuantumSim } from './OpticsQuantumSim';
@@ -24,7 +24,7 @@ export const PhysicsLab: React.FC<PhysicsLabProps> = ({ onOpenGuide }) => {
       num: '01',
       titleAr: 'قوانين الغازات والموائع والطفو',
       titleEn: 'Gas Laws & Fluid Mechanics',
-      shortAr: 'الغازات والموائع والطفو',
+      shortAr: 'الغازات والموائع',
       shortEn: 'Gas & Fluids',
       descAr: 'المكبس التفاعلي، التصادمات المرنة، وعلاقات P-V-T وقاعدة أرخميدس',
       descEn: 'Interactive piston, elastic collisions, and Archimedes buoyancy',
@@ -35,7 +35,7 @@ export const PhysicsLab: React.FC<PhysicsLabProps> = ({ onOpenGuide }) => {
       num: '02',
       titleAr: 'الكهرباء الساكنة وحقول كولوم',
       titleEn: 'Electrostatics & Coulomb Fields',
-      shortAr: 'الكهرباء الساكنة وكولوم',
+      shortAr: 'الكهرباء الساكنة',
       shortEn: 'Electrostatics',
       descAr: 'خطوط المجال الكهربائي، قوى كولوم، وإطلاق الشحنات الاختبارية',
       descEn: 'Field vectors, Coulomb forces, and test particle dynamics',
@@ -46,7 +46,7 @@ export const PhysicsLab: React.FC<PhysicsLabProps> = ({ onOpenGuide }) => {
       num: '03',
       titleAr: 'البصريات والظاهرة الكهروضوئية',
       titleEn: 'Optics & Photoelectric Effect',
-      shortAr: 'البصريات والكم والكهروضوئية',
+      shortAr: 'البصريات والكم',
       shortEn: 'Optics & Quantum',
       descAr: 'انبعاث الإلكترونات الضوئية، جهد الإيقاف، وأطياف الانبعاث الذري',
       descEn: 'Photoelectron emission, stopping potential, and atomic spectra',
@@ -83,17 +83,8 @@ export const PhysicsLab: React.FC<PhysicsLabProps> = ({ onOpenGuide }) => {
             </div>
           </div>
 
-          {/* Quick Action: Open Integrated Physics Calculator & Constants */}
+          {/* Physical Constants Pill */}
           <div className="flex items-center gap-2.5 flex-wrap">
-            <button
-              type="button"
-              onClick={() => openCalculator('physics')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white text-xs font-bold transition-all shadow-md active:scale-95"
-            >
-              <Calculator className="w-4 h-4" />
-              <span>{t('حاسبة القوانين الفيزيائية المدمجة', 'Integrated Physics Calculator')}</span>
-            </button>
-
             <div className={`px-3 py-2 rounded-xl border flex items-center gap-2 text-xs font-mono ${
               isDark ? 'bg-slate-950/70 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
             }`}>

@@ -84,6 +84,12 @@ interface AppContextType {
   closeCalculator: () => void;
   curriculumExperimentToLaunch: string | null;
   setCurriculumExperimentToLaunch: (id: string | null) => void;
+  // Multi-Turn Q&A Chatbot
+  isChatOpen: boolean;
+  openChat: (initialQuery?: string, rolePreset?: 'chemistry' | 'physics' | 'problem_solver' | 'quiz_master') => void;
+  closeChat: () => void;
+  chatInitialQuery: string | null;
+  chatRolePreset: 'chemistry' | 'physics' | 'problem_solver' | 'quiz_master';
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -116,6 +122,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [calculatorTab, setCalculatorTab] = useState<CalculatorTabType>('ph');
   const [calculatorDomain, setCalculatorDomain] = useState<AppDomain>('chemistry');
   const [curriculumExperimentToLaunch, setCurriculumExperimentToLaunch] = useState<string | null>(null);
+
+  // Multi-Turn Q&A Chatbot State
+  const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
+  const [chatInitialQuery, setChatInitialQuery] = useState<string | null>(null);
+  const [chatRolePreset, setChatRolePreset] = useState<'chemistry' | 'physics' | 'problem_solver' | 'quiz_master'>('chemistry');
+
+  const openChat = (initialQuery?: string, rolePreset?: 'chemistry' | 'physics' | 'problem_solver' | 'quiz_master') => {
+    if (initialQuery) setChatInitialQuery(initialQuery);
+    if (rolePreset) setChatRolePreset(rolePreset);
+    else if (currentDomain === 'physics') setChatRolePreset('physics');
+    else setChatRolePreset('chemistry');
+    setIsChatOpen(true);
+    playLabSound('click');
+  };
+
+  const closeChat = () => {
+    setIsChatOpen(false);
+    setChatInitialQuery(null);
+  };
 
   const setCurrentDomain = (domain: AppDomain) => {
     setCurrentDomainState(domain);
@@ -291,7 +316,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openCalculator,
         closeCalculator,
         curriculumExperimentToLaunch,
-        setCurriculumExperimentToLaunch
+        setCurriculumExperimentToLaunch,
+        isChatOpen,
+        openChat,
+        closeChat,
+        chatInitialQuery,
+        chatRolePreset
       }}
     >
       {children}

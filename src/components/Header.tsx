@@ -17,10 +17,13 @@ import {
   Orbit,
   Wind,
   Zap,
-  HelpCircle
+  HelpCircle,
+  Bot,
+  MessageSquare
 } from 'lucide-react';
-import { useApp, ActiveTabType, ApparatusStationType, PhysicsStationId } from '../context/AppContext';
+import { useApp, ActiveTabType, ApparatusStationType, PhysicsStationId, AppDomain } from '../context/AppContext';
 import { ScientificSearchBar } from './ScientificSearchBar';
+import { playLabSound } from '../utils/soundEffects';
 
 interface HeaderProps {
   onOpenGuide: () => void;
@@ -45,7 +48,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
     activeApparatusStation,
     setActiveApparatusStation,
     openCurriculum,
-    openCalculator
+    openCalculator,
+    openChat
   } = useApp();
 
   const isDark = theme === 'dark';
@@ -84,12 +88,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
         toggleSound();
       } else if (e.key === '?' || e.key === 'g' || e.key === 'G') {
         onOpenGuide();
+      } else if (e.key === 'q' || e.key === 'Q') {
+        openChat();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentDomain, setCurrentDomain, setActiveTab, setPhysicsStation, toggleTheme, toggleLang, toggleSound, onOpenGuide]);
+  }, [currentDomain, setCurrentDomain, setActiveTab, setPhysicsStation, toggleTheme, toggleLang, toggleSound, onOpenGuide, openChat]);
 
   // Chemistry Domain Sections (strictly 5 modules)
   const chemistryNavItems: {
@@ -99,8 +105,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
     labelEn: string;
     shortAr: string;
     shortEn: string;
-    badgeAr: string;
-    badgeEn: string;
     icon: React.ReactNode;
   }[] = [
     {
@@ -110,8 +114,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
       labelEn: 'Atom Builder & Orbitals',
       shortAr: 'الذرات (1-118)',
       shortEn: 'Atoms (1-118)',
-      badgeAr: '1-118 عنصر',
-      badgeEn: '1-118 Elements',
       icon: <Atom className="w-4 h-4 shrink-0" />
     },
     {
@@ -119,10 +121,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
       num: '02',
       labelAr: 'تكوين الروابط والمركبات',
       labelEn: 'Molecule Builder & 3D',
-      shortAr: 'المركبات',
-      shortEn: 'Molecules',
-      badgeAr: '3D تفاعلي',
-      badgeEn: '3D Geometry',
+      shortAr: 'المركبات 3D',
+      shortEn: 'Molecules 3D',
       icon: <Network className="w-4 h-4 shrink-0" />
     },
     {
@@ -131,9 +131,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
       labelAr: 'حالات المادة والديناميكا',
       labelEn: 'States of Matter',
       shortAr: 'حالات المادة',
-      shortEn: 'States',
-      badgeAr: 'صلب/سائل/غاز',
-      badgeEn: 'Phases',
+      shortEn: 'States of Matter',
       icon: <Flame className="w-4 h-4 shrink-0" />
     },
     {
@@ -142,9 +140,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
       labelAr: 'النشاط الإشعاعي وعمر النصف',
       labelEn: 'Radioactive Decay',
       shortAr: 'النشاط الإشعاعي',
-      shortEn: 'Radiation',
-      badgeAr: 'ألفا/بيتا/جاما',
-      badgeEn: 'α / β / γ',
+      shortEn: 'Radioactivity',
       icon: <Radiation className="w-4 h-4 shrink-0" />
     },
     {
@@ -153,9 +149,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
       labelAr: 'معمل التجارب التفاعلي',
       labelEn: 'Experimental Lab',
       shortAr: 'معمل التجارب',
-      shortEn: 'Exp Lab',
-      badgeAr: '14 تجربة وزارية',
-      badgeEn: '14 Labs',
+      shortEn: 'Experimental Lab',
       icon: <FlaskConical className="w-4 h-4 shrink-0" />
     }
   ];
@@ -168,41 +162,33 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
     labelEn: string;
     shortAr: string;
     shortEn: string;
-    badgeAr: string;
-    badgeEn: string;
     icon: React.ReactNode;
   }[] = [
     {
       id: 'gas_fluid',
       num: '01',
-      labelAr: 'الغازات والموائع والطفو',
-      labelEn: 'Gas Laws & Fluids',
-      shortAr: 'الغازات والموائع والطفو',
+      labelAr: 'الغازات والموائع وقاعدة أرخميدس',
+      labelEn: 'Gas Laws & Archimedes Fluids',
+      shortAr: 'الغازات والموائع',
       shortEn: 'Gas & Fluids',
-      badgeAr: 'بويل وأرخميدس',
-      badgeEn: 'Boyle & Buoyancy',
       icon: <Wind className="w-4 h-4 shrink-0" />
     },
     {
       id: 'electrostatics',
       num: '02',
-      labelAr: 'الكهرباء الساكنة وكولوم',
-      labelEn: 'Electrostatics & Fields',
-      shortAr: 'الكهرباء الساكنة وكولوم',
+      labelAr: 'الكهرباء الساكنة وحقول كولوم',
+      labelEn: 'Electrostatics & Coulomb Fields',
+      shortAr: 'الكهرباء الساكنة',
       shortEn: 'Electrostatics',
-      badgeAr: 'حقول وقوى كولوم',
-      badgeEn: 'Coulomb Fields',
       icon: <Zap className="w-4 h-4 shrink-0" />
     },
     {
       id: 'optics_quantum',
       num: '03',
       labelAr: 'البصريات والكم والكهروضوئية',
-      labelEn: 'Optics & Photoelectric',
-      shortAr: 'البصريات والكم والكهروضوئية',
+      labelEn: 'Optics & Photoelectric Effect',
+      shortAr: 'البصريات والكم',
       shortEn: 'Optics & Quantum',
-      badgeAr: 'فوتونات وأطياف',
-      badgeEn: 'Photons & Spectra',
       icon: <Orbit className="w-4 h-4 shrink-0" />
     }
   ];
@@ -256,14 +242,13 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
           <div className="flex items-center gap-1.5 lg:hidden">
             <button
               type="button"
-              onClick={toggleDomain}
-              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${
-                currentDomain === 'chemistry'
-                  ? 'bg-purple-500/10 border-purple-500/40 text-purple-400'
-                  : 'bg-cyan-500/10 border-cyan-500/40 text-cyan-400'
+              onClick={() => openChat()}
+              className={`p-2 rounded-xl border ${
+                isDark ? 'bg-slate-900 border-slate-800 text-purple-400' : 'bg-slate-100 border-slate-200 text-purple-700'
               }`}
+              title={t('المساعد العلمي للأسئلة (Q)', 'AI Q&A Assistant (Q)')}
             >
-              <span>{currentDomain === 'chemistry' ? '⚡ فيزياء' : '🧪 كيمياء'}</span>
+              <Bot className="w-4 h-4 animate-pulse" />
             </button>
 
             <button
@@ -283,54 +268,77 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
               className={`p-2 rounded-xl border ${
                 isDark ? 'bg-slate-900 border-slate-800 text-cyan-400' : 'bg-slate-100 border-slate-200 text-cyan-700'
               }`}
+              title={t('البحث الذكي', 'Search')}
             >
               <Search className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Center: The Dual Domain Switcher (Chemistry vs Physics) */}
-        <div className="w-full lg:w-auto flex items-center justify-center">
-          <div className={`p-1.5 rounded-2xl border flex items-center gap-1.5 w-full sm:w-auto shadow-inner ${
-            isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-100 border-slate-200'
-          }`}>
-            {/* Chemistry Branch Toggle */}
+        {/* Center: The Dual Domain Switcher (Chemistry vs Physics) - Separate, Prominent Tabs */}
+        <div className="w-full lg:w-auto flex items-center justify-center order-3 lg:order-2">
+          <div
+            role="tablist"
+            aria-label="Scientific Domain Selector"
+            className={`p-1.5 rounded-2xl border flex items-center gap-1.5 w-full sm:w-auto shadow-inner transition-all ${
+              isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-100 border-slate-200'
+            }`}
+          >
+            {/* Chemistry Domain Main Tab */}
             <button
+              role="tab"
+              aria-selected={currentDomain === 'chemistry'}
               type="button"
-              onClick={() => setCurrentDomain('chemistry')}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all relative ${
+              onClick={() => {
+                setCurrentDomain('chemistry');
+                playLabSound('click');
+              }}
+              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all relative ${
                 currentDomain === 'chemistry'
-                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md ring-1 ring-cyan-400/50'
+                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md ring-2 ring-cyan-400/50 scale-[1.01]'
                   : isDark
                   ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
             >
-              <FlaskConical className={`w-4 h-4 ${currentDomain === 'chemistry' ? 'text-white' : 'text-cyan-400'}`} />
+              <FlaskConical className={`w-4 h-4 ${currentDomain === 'chemistry' ? 'text-white animate-pulse' : 'text-cyan-400'}`} />
               <span>{t('مختبر الكيمياء', 'Chemistry Lab')}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
-                currentDomain === 'chemistry' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold ${
+                currentDomain === 'chemistry'
+                  ? 'bg-white/20 text-white border border-white/30'
+                  : isDark
+                  ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                  : 'bg-white text-slate-600 border border-slate-200'
               }`}>
                 {t('5 أقسام', '5 Modules')}
               </span>
             </button>
 
-            {/* Physics Branch Toggle */}
+            {/* Physics Domain Main Tab */}
             <button
+              role="tab"
+              aria-selected={currentDomain === 'physics'}
               type="button"
-              onClick={() => setCurrentDomain('physics')}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all relative ${
+              onClick={() => {
+                setCurrentDomain('physics');
+                playLabSound('click');
+              }}
+              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all relative ${
                 currentDomain === 'physics'
-                  ? 'bg-gradient-to-r from-purple-600 to-amber-600 text-white shadow-md ring-1 ring-purple-400/50'
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md ring-2 ring-purple-400/50 scale-[1.01]'
                   : isDark
                   ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white'
               }`}
             >
-              <Orbit className={`w-4 h-4 ${currentDomain === 'physics' ? 'text-white' : 'text-amber-400'}`} />
+              <Orbit className={`w-4 h-4 ${currentDomain === 'physics' ? 'text-white animate-spin-slow' : 'text-amber-400'}`} />
               <span>{t('مختبر الفيزياء', 'Physics Lab')}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
-                currentDomain === 'physics' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold ${
+                currentDomain === 'physics'
+                  ? 'bg-white/20 text-white border border-white/30'
+                  : isDark
+                  ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                  : 'bg-white text-slate-600 border border-slate-200'
               }`}>
                 {t('3 محطات', '3 Stations')}
               </span>
@@ -394,6 +402,21 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
             <span>{lang === 'ar' ? 'EN' : 'عربي'}</span>
           </button>
 
+          {/* AI Science Q&A Assistant Button */}
+          <button
+            type="button"
+            onClick={() => openChat()}
+            className={`px-3.5 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs ${
+              isDark
+                ? 'bg-gradient-to-r from-purple-950/60 to-blue-950/60 border-purple-500/40 text-purple-300 hover:text-white hover:border-purple-400'
+                : 'bg-gradient-to-r from-purple-50 to-blue-50 border-purple-300 text-purple-800 hover:bg-purple-100'
+            }`}
+            title={t('طرح الأسئلة على المساعد العلمي الذكي (Q)', 'Ask AI Science Assistant (Q)')}
+          >
+            <Bot className="w-4 h-4 text-purple-400 animate-pulse" />
+            <span>{t('طرح الأسئلة', 'Ask AI')}</span>
+          </button>
+
           {/* Unified Calculator Launcher (Opens chemistry or physics based on active domain) */}
           <button
             type="button"
@@ -425,122 +448,108 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
       </div>
 
       {/* Lower Deck: Full-Width Domain Sub-Navigation Strip (Spacious, Zero Clutter) */}
-      <div className={`border-t px-4 sm:px-6 lg:px-8 py-2.5 transition-colors ${
+      <div className={`border-t px-4 sm:px-6 lg:px-8 py-2 transition-colors ${
         isDark ? 'border-slate-800/80 bg-slate-950/60' : 'border-slate-200/80 bg-slate-50/80'
       }`}>
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           {/* Active Domain Indicator Label */}
-          <div className="hidden md:flex items-center gap-2 text-xs font-bold text-slate-400 shrink-0">
-            <span className={`w-2 h-2 rounded-full ${
-              currentDomain === 'chemistry' ? 'bg-cyan-400 animate-ping' : 'bg-purple-400 animate-ping'
+          <div className="hidden lg:flex items-center gap-2 text-xs font-bold text-slate-400 shrink-0">
+            <span className={`w-2.5 h-2.5 rounded-full ${
+              currentDomain === 'chemistry'
+                ? 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]'
+                : 'bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.8)]'
             }`} />
-            <span>
+            <span className={`font-bold transition-colors ${currentDomain === 'chemistry' ? 'text-cyan-400' : 'text-purple-400'}`}>
               {currentDomain === 'chemistry'
-                ? t('أقسام الكيمياء المعتمدة (5):', 'Chemistry Sections (5):')
-                : t('محطات المختبر الفيزيائي (3):', 'Physics Lab Stations (3):')}
+                ? t('أقسام الكيمياء (5):', 'Chemistry Sections (5):')
+                : t('محطات الفيزياء (3):', 'Physics Stations (3):')}
             </span>
           </div>
 
-          {/* The Spacious Module Ribbon - Spanning clean and centered */}
+          {/* The Spacious Module Ribbon - Strictly Segregated with Keyed Mounting */}
           <nav
-            aria-label="Active Sub-Module Navigation"
-            className="w-full flex-1 flex items-center justify-start md:justify-center gap-2 overflow-x-auto scrollbar-none py-0.5"
+            key={`domain-subnav-${currentDomain}`}
+            dir={isAr ? 'rtl' : 'ltr'}
+            aria-label={currentDomain === 'chemistry' ? 'Chemistry Modules' : 'Physics Stations'}
+            className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2.5 overflow-x-auto scrollbar-none py-1 px-1 transition-all duration-300"
           >
-            {/* Case 1: Chemistry Domain Sub-Sections (5 items) */}
-            {currentDomain === 'chemistry' &&
-              chemistryNavItems.map((item) => {
-                const isActive = activeTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setActiveTab(item.id)}
-                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 border ${
-                      isActive
-                        ? 'bg-cyan-600 border-cyan-400 text-white shadow-md'
-                        : isDark
-                        ? 'bg-slate-900/80 border-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-800'
-                        : 'bg-white border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span className={isActive ? 'text-white' : 'text-cyan-400'}>{item.icon}</span>
-                    <span className={`font-mono text-xs ${isActive ? 'text-cyan-100' : 'text-slate-400'}`}>
-                      {item.num}.
-                    </span>
-                    <span>{isAr ? item.shortAr : item.shortEn}</span>
-                    <span className={`hidden xl:inline text-[10px] px-1.5 py-0.5 rounded-md font-normal ${
-                      isActive
-                        ? 'bg-white/20 text-white'
-                        : isDark
-                        ? 'bg-slate-800 text-slate-400'
-                        : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {isAr ? item.badgeAr : item.badgeEn}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Domain 1: Chemistry Sub-Sections (Strictly 5 items, zero physics overlap) */}
+            {currentDomain === 'chemistry' && (
+              <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 animate-fadeIn">
+                {chemistryNavItems.map((item) => {
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={`chem-tab-${item.id}`}
+                      type="button"
+                      onClick={() => {
+                        setActiveTab(item.id);
+                        playLabSound('click');
+                      }}
+                      className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 border ${
+                        isActive
+                          ? 'bg-cyan-600 border-cyan-400 text-white shadow-md ring-2 ring-cyan-400/40'
+                          : isDark
+                          ? 'bg-slate-900/80 border-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-800'
+                          : 'bg-white border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className={isActive ? 'text-white' : 'text-cyan-400'}>{item.icon}</span>
+                      <span className={`font-mono text-xs ${isActive ? 'text-cyan-100' : 'text-slate-400'}`}>
+                        {item.num}.
+                      </span>
+                      <span>{isAr ? item.shortAr : item.shortEn}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-            {/* Case 2: Physics Domain Sub-Stations (3 items) */}
-            {currentDomain === 'physics' &&
-              physicsNavItems.map((st) => {
-                const isActive = physicsStation === st.id;
-                return (
-                  <button
-                    key={st.id}
-                    type="button"
-                    onClick={() => setPhysicsStation(st.id)}
-                    className={`flex items-center gap-2 px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 border ${
-                      isActive
-                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-400 text-white shadow-md ring-1 ring-purple-400/50'
-                        : isDark
-                        ? 'bg-slate-900/80 border-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-800'
-                        : 'bg-white border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span className={isActive ? 'text-white' : 'text-purple-400'}>{st.icon}</span>
-                    <span className={`font-mono text-xs ${isActive ? 'text-purple-100' : 'text-slate-400'}`}>
-                      {st.num}.
-                    </span>
-                    <span>{isAr ? st.shortAr : st.shortEn}</span>
-                    <span className={`hidden xl:inline text-[10px] px-1.5 py-0.5 rounded-md font-normal ${
-                      isActive
-                        ? 'bg-white/20 text-white'
-                        : isDark
-                        ? 'bg-slate-800 text-slate-400'
-                        : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {isAr ? st.badgeAr : st.badgeEn}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Domain 2: Physics Sub-Stations (Strictly 3 items, zero chemistry overlap) */}
+            {currentDomain === 'physics' && (
+              <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 animate-fadeIn">
+                {physicsNavItems.map((st) => {
+                  const isActive = physicsStation === st.id;
+                  return (
+                    <button
+                      key={`phys-tab-${st.id}`}
+                      type="button"
+                      onClick={() => {
+                        setPhysicsStation(st.id);
+                        playLabSound('click');
+                      }}
+                      className={`flex items-center gap-2 px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 border ${
+                        isActive
+                          ? 'bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-400 text-white shadow-md ring-2 ring-purple-400/50'
+                          : isDark
+                          ? 'bg-slate-900/80 border-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-800'
+                          : 'bg-white border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className={isActive ? 'text-white' : 'text-purple-400'}>{st.icon}</span>
+                      <span className={`font-mono text-xs ${isActive ? 'text-purple-100' : 'text-slate-400'}`}>
+                        {st.num}.
+                      </span>
+                      <span>{isAr ? st.shortAr : st.shortEn}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </nav>
 
-          {/* Side Helper Telemetry / Guide Trigger */}
+          {/* Side Helper Guide Trigger */}
           <div className="hidden lg:flex items-center gap-2 shrink-0">
-            {currentDomain === 'physics' ? (
-              <div className={`px-2.5 py-1 rounded-xl border text-[11px] font-mono flex items-center gap-2 ${
-                isDark ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-600'
-              }`}>
-                <span className="text-slate-500">g:</span>
-                <span className="text-cyan-400 font-bold">9.8 m/s²</span>
-                <span className="text-slate-600">|</span>
-                <span className="text-slate-500">c:</span>
-                <span className="text-amber-400 font-bold">3×10⁸</span>
-              </div>
-            ) : null}
-
             <button
               type="button"
               onClick={onOpenGuide}
               className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${
                 isDark ? 'border-slate-800 bg-slate-900/80 text-cyan-400 hover:bg-slate-800' : 'border-slate-200 bg-white text-cyan-700 hover:bg-slate-100'
               }`}
-              title={t('دليل المفاهيم والاستخدام', 'Guide & Concepts')}
+              title={t('دليل الاستخدام السريع المفصل', 'Detailed Quick Guide')}
             >
               <HelpCircle className="w-4 h-4" />
-              <span className="hidden xl:inline">{t('دليل القسم', 'Guide')}</span>
+              <span className="hidden xl:inline">{t('دليل الاستخدام', 'Quick Guide')}</span>
             </button>
           </div>
         </div>
