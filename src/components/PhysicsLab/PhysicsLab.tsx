@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { GasThermodynamicsSim } from './GasThermodynamicsSim';
 import { ElectrostaticsSim } from './ElectrostaticsSim';
 import { OpticsQuantumSim } from './OpticsQuantumSim';
+import { ScrollableRibbon } from '../ScrollableRibbon';
 import { playLabSound } from '../../utils/soundEffects';
 
 interface PhysicsLabProps {
@@ -98,8 +99,13 @@ export const PhysicsLab: React.FC<PhysicsLabProps> = ({ onOpenGuide }) => {
         </div>
       </div>
 
-      {/* Physics Stations Compact Pill Switcher */}
-      <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto scrollbar-none py-1">
+      {/* Physics Stations Compact Pill Switcher with ScrollableRibbon Arrows */}
+      <ScrollableRibbon
+        containerClassName="justify-center"
+        className="justify-start sm:justify-center gap-2"
+        scrollAmount={180}
+        alwaysShowArrows={true}
+      >
         {stations.map(st => {
           const isActive = activeStation === st.id;
           return (
@@ -109,7 +115,7 @@ export const PhysicsLab: React.FC<PhysicsLabProps> = ({ onOpenGuide }) => {
                 setActiveStation(st.id);
                 playLabSound('click');
               }}
-              className={`px-4 py-2.5 rounded-2xl border transition-all flex items-center gap-2.5 text-xs sm:text-sm font-bold whitespace-nowrap shrink-0 ${
+              className={`px-4 py-2.5 rounded-2xl border transition-all flex items-center gap-2.5 text-xs sm:text-sm font-bold whitespace-nowrap shrink-0 mx-0.5 ${
                 isActive
                   ? isDark
                     ? 'bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-400 text-white shadow-md ring-1 ring-purple-400/50'
@@ -125,7 +131,7 @@ export const PhysicsLab: React.FC<PhysicsLabProps> = ({ onOpenGuide }) => {
             </button>
           );
         })}
-      </div>
+      </ScrollableRibbon>
 
       {/* Main Active Simulation Stage */}
       <div className="w-full">

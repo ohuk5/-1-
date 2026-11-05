@@ -19,6 +19,7 @@ import {
 import { ISOTOPES, IsotopeInfo } from '../data/isotopesData';
 import { useApp } from '../context/AppContext';
 import { playLabSound } from '../utils/soundEffects';
+import { ScrollableRibbon } from './ScrollableRibbon';
 
 interface DecayCell {
   id: number;
@@ -554,43 +555,50 @@ export const RadioactiveDecay: React.FC<RadioactiveDecayProps> = ({ onOpenGuide 
           <span>{t('تطبيقات النظائر المشعة السريعة:', 'Quick Nuclear Scenarios:')}</span>
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 text-xs font-bold no-scrollbar flex-1">
-          <button
-            onClick={() => openCurriculum(4)}
-            className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1 shrink-0 shadow-xs"
-            title={t('مرجع الكيمياء الكهربائية والطاقة من كتاب كيمياء 3', 'Electrochemistry & Energy Reference')}
+        <div className="flex-1 min-w-0">
+          <ScrollableRibbon
+            alwaysShowArrows={true}
+            arrowSize="xs"
+            scrollAmount={180}
+            className="gap-1.5 text-xs font-bold pb-1 md:pb-0"
           >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>{t('مرجع كيمياء 3 (فصل 4)', 'Ch 4 Chemistry 3 Ref')}</span>
-          </button>
-          {[
-            { id: 'carbon14', label: t('🦴 تأريخ الأحافير (¹⁴C)', '🦴 Carbon Dating (¹⁴C)') },
-            { id: 'fluorine18', label: t('🧠 بوزيترون ومسح الأورام (¹⁸F)', '🧠 Positron PET (¹⁸F)') },
-            { id: 'tritium', label: t('☀️ وقود الاندماج (³H)', '☀️ Fusion Fuel (³H)') },
-            { id: 'cobalt60', label: t('🏥 علاج الأورام (⁶⁰Co)', '🏥 Cancer Therapy (⁶⁰Co)') },
-            { id: 'iodine131', label: t('🧬 الغدة الدرقية (¹³¹I)', '🧬 Thyroid Med (¹³¹I)') },
-            { id: 'americium241', label: t('🔔 كاشف الدخان (²⁴¹Am)', '🔔 Smoke Detector (²⁴¹Am)') },
-            { id: 'uranium235', label: t('⚡ وقود المفاعلات (²³⁵U)', '⚡ Reactor Fuel (²³⁵U)') },
-            { id: 'plutonium239', label: t('🛰️ طاقة الفضاء (²³⁹Pu)', '🛰️ Space Power (²³⁹Pu)') },
-            { id: 'polonium210', label: t('☢️ البولونيوم (²¹⁰Po)', '☢️ Polonium (²¹⁰Po)') },
-          ].map((item) => (
             <button
-              key={item.id}
-              onClick={() => {
-                playLabSound('click');
-                setSelectedIsotopeId(item.id);
-              }}
-              className={`px-3 py-1.5 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1 ${
-                selectedIsotopeId === item.id
-                  ? 'bg-cyan-600 border-cyan-500 text-white shadow-sm'
-                  : isDark
-                  ? 'bg-slate-950/70 hover:bg-slate-800 border-slate-800 text-slate-300'
-                  : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
-              }`}
+              onClick={() => openCurriculum(4)}
+              className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1 shrink-0 shadow-xs"
+              title={t('مرجع الكيمياء الكهربائية والطاقة من كتاب كيمياء 3', 'Electrochemistry & Energy Reference')}
             >
-              <span>{item.label}</span>
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>{t('مرجع كيمياء 3 (فصل 4)', 'Ch 4 Chemistry 3 Ref')}</span>
             </button>
-          ))}
+            {[
+              { id: 'carbon14', label: t('🦴 تأريخ الأحافير (¹⁴C)', '🦴 Carbon Dating (¹⁴C)') },
+              { id: 'fluorine18', label: t('🧠 بوزيترون ومسح الأورام (¹⁸F)', '🧠 Positron PET (¹⁸F)') },
+              { id: 'tritium', label: t('☀️ وقود الاندماج (³H)', '☀️ Fusion Fuel (³H)') },
+              { id: 'cobalt60', label: t('🏥 علاج الأورام (⁶⁰Co)', '🏥 Cancer Therapy (⁶⁰Co)') },
+              { id: 'iodine131', label: t('🧬 الغدة الدرقية (¹³¹I)', '🧬 Thyroid Med (¹³¹I)') },
+              { id: 'americium241', label: t('🔔 كاشف الدخان (²⁴¹Am)', '🔔 Smoke Detector (²⁴¹Am)') },
+              { id: 'uranium235', label: t('⚡ وقود المفاعلات (²³⁵U)', '⚡ Reactor Fuel (²³⁵U)') },
+              { id: 'plutonium239', label: t('🛰️ طاقة الفضاء (²³⁹Pu)', '🛰️ Space Power (²³⁹Pu)') },
+              { id: 'polonium210', label: t('☢️ البولونيوم (²¹⁰Po)', '☢️ Polonium (²¹⁰Po)') },
+            ].map((item) => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  playLabSound('click');
+                  setSelectedIsotopeId(item.id);
+                }}
+                className={`px-3 py-1.5 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1 ${
+                  selectedIsotopeId === item.id
+                    ? 'bg-cyan-600 border-cyan-500 text-white shadow-sm'
+                    : isDark
+                    ? 'bg-slate-950/70 hover:bg-slate-800 border-slate-800 text-slate-300'
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                }`}
+              >
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </ScrollableRibbon>
         </div>
 
         <button

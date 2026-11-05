@@ -24,6 +24,7 @@ import { PeriodicTableModal } from './PeriodicTableModal';
 import { AtomViewer3D } from './AtomViewer3D';
 import { useApp } from '../context/AppContext';
 import { playLabSound } from '../utils/soundEffects';
+import { ScrollableRibbon } from './ScrollableRibbon';
 
 interface NucleusNode {
   x: number;
@@ -712,47 +713,54 @@ export const AtomBuilder: React.FC<AtomBuilderProps> = ({ onOpenGuide }) => {
           <span>{t('نماذج ذرية وأيونية سريعة:', 'Quick Atomic & Ionic Models:')}</span>
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 text-xs font-bold no-scrollbar flex-1">
-          {[
-            { label: t('¹H الهيدروجين', '¹H Hydrogen'), p: 1, n: 0, e: 1 },
-            { label: t('²H ديوتيريوم (ماء ثقيل)', '²H Deuterium'), p: 1, n: 1, e: 1 },
-            { label: t('³H تريتيوم مشع', '³H Tritium'), p: 1, n: 2, e: 1 },
-            { label: t('⁴He الهيليوم (سحري)', '⁴He Helium (Magic)'), p: 2, n: 2, e: 2 },
-            { label: t('¹²C الكربون الأساسي', '¹²C Carbon-12'), p: 6, n: 6, e: 6 },
-            { label: t('¹⁴C الكربون المشع', '¹⁴C Carbon-14'), p: 6, n: 8, e: 6 },
-            { label: t('¹⁶O الأكسجين', '¹⁶O Oxygen-16'), p: 8, n: 8, e: 8 },
-            { label: t('²³Na⁺ أيون الصوديوم', '²³Na⁺ Sodium Ion'), p: 11, n: 12, e: 10 },
-            { label: t('²⁸Si السيليكون', '²⁸Si Silicon-28'), p: 14, n: 14, e: 14 },
-            { label: t('⁴⁰Ca كالسيوم سحري مزدوج', '⁴⁰Ca Doubly Magic'), p: 20, n: 20, e: 20 },
-            { label: t('⁵⁶Fe الحديد المستقر', '⁵⁶Fe Iron-56'), p: 26, n: 30, e: 26 },
-            { label: t('¹⁰⁷Ag الفضة', '¹⁰⁷Ag Silver-107'), p: 47, n: 60, e: 47 },
-            { label: t('¹⁹⁷Au الذهب النبيل', '¹⁹⁷Au Noble Gold'), p: 79, n: 118, e: 79 },
-            { label: t('²⁰⁸Pb رصاص سحري مزدوج', '²⁰⁸Pb Doubly Magic'), p: 82, n: 126, e: 82 },
-            { label: t('²³⁵U يورانيوم انشطاري', '²³⁵U Fissile Uranium'), p: 92, n: 143, e: 92 },
-            { label: t('²³⁸U اليورانيوم المشع', '²³⁸U Uranium-238'), p: 92, n: 146, e: 92 },
-          ].map((preset, idx) => {
-            const isCurrent = protons === preset.p && neutrons === preset.n && electrons === preset.e;
-            return (
-              <button
-                key={idx}
-                onClick={() => {
-                  playLabSound('nucleon');
-                  setProtons(preset.p);
-                  setNeutrons(preset.n);
-                  setElectrons(preset.e);
-                }}
-                className={`px-3 py-1.5 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1 ${
-                  isCurrent
-                    ? 'bg-cyan-600 border-cyan-500 text-white shadow-sm'
-                    : isDark
-                    ? 'bg-slate-950/70 hover:bg-slate-800 border-slate-800 text-slate-300'
-                    : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
-                }`}
-              >
-                <span>{preset.label}</span>
-              </button>
-            );
-          })}
+        <div className="flex-1 min-w-0">
+          <ScrollableRibbon
+            alwaysShowArrows={true}
+            arrowSize="xs"
+            scrollAmount={180}
+            className="gap-1.5 text-xs font-bold pb-1 md:pb-0"
+          >
+            {[
+              { label: t('¹H الهيدروجين', '¹H Hydrogen'), p: 1, n: 0, e: 1 },
+              { label: t('²H ديوتيريوم (ماء ثقيل)', '²H Deuterium'), p: 1, n: 1, e: 1 },
+              { label: t('³H تريتيوم مشع', '³H Tritium'), p: 1, n: 2, e: 1 },
+              { label: t('⁴He الهيليوم (سحري)', '⁴He Helium (Magic)'), p: 2, n: 2, e: 2 },
+              { label: t('¹²C الكربون الأساسي', '¹²C Carbon-12'), p: 6, n: 6, e: 6 },
+              { label: t('¹⁴C الكربون المشع', '¹⁴C Carbon-14'), p: 6, n: 8, e: 6 },
+              { label: t('¹⁶O الأكسجين', '¹⁶O Oxygen-16'), p: 8, n: 8, e: 8 },
+              { label: t('²³Na⁺ أيون الصوديوم', '²³Na⁺ Sodium Ion'), p: 11, n: 12, e: 10 },
+              { label: t('²⁸Si السيليكون', '²⁸Si Silicon-28'), p: 14, n: 14, e: 14 },
+              { label: t('⁴⁰Ca كالسيوم سحري مزدوج', '⁴⁰Ca Doubly Magic'), p: 20, n: 20, e: 20 },
+              { label: t('⁵⁶Fe الحديد المستقر', '⁵⁶Fe Iron-56'), p: 26, n: 30, e: 26 },
+              { label: t('¹⁰⁷Ag الفضة', '¹⁰⁷Ag Silver-107'), p: 47, n: 60, e: 47 },
+              { label: t('¹⁹⁷Au الذهب النبيل', '¹⁹⁷Au Noble Gold'), p: 79, n: 118, e: 79 },
+              { label: t('²⁰⁸Pb رصاص سحري مزدوج', '²⁰⁸Pb Doubly Magic'), p: 82, n: 126, e: 82 },
+              { label: t('²³⁵U يورانيوم انشطاري', '²³⁵U Fissile Uranium'), p: 92, n: 143, e: 92 },
+              { label: t('²³⁸U اليورانيوم المشع', '²³⁸U Uranium-238'), p: 92, n: 146, e: 92 },
+            ].map((preset, idx) => {
+              const isCurrent = protons === preset.p && neutrons === preset.n && electrons === preset.e;
+              return (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    playLabSound('nucleon');
+                    setProtons(preset.p);
+                    setNeutrons(preset.n);
+                    setElectrons(preset.e);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1 ${
+                    isCurrent
+                      ? 'bg-cyan-600 border-cyan-500 text-white shadow-sm'
+                      : isDark
+                      ? 'bg-slate-950/70 hover:bg-slate-800 border-slate-800 text-slate-300'
+                      : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                  }`}
+                >
+                  <span>{preset.label}</span>
+                </button>
+              );
+            })}
+          </ScrollableRibbon>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">

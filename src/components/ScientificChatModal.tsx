@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { playLabSound } from '../utils/soundEffects';
+import { ScrollableRibbon } from './ScrollableRibbon';
 
 interface ChatMessage {
   id: string;
@@ -347,14 +348,19 @@ What question would you like to explore today?`;
 
         {/* Persona / Role Selector Strip */}
         <div
-          className={`px-4 py-2.5 border-b flex items-center gap-2 overflow-x-auto scrollbar-none ${
+          className={`px-3 py-1.5 border-b flex items-center gap-2 ${
             isDark ? 'bg-slate-950/70 border-slate-800/80' : 'bg-slate-100/70 border-slate-200'
           }`}
         >
           <span className="text-[11px] font-bold text-slate-400 shrink-0 hidden md:inline">
             {t('تخصيص نمط المساعد:', 'Tutor Persona:')}
           </span>
-          <div className="flex items-center gap-2">
+          <ScrollableRibbon
+            alwaysShowArrows={true}
+            arrowSize="xs"
+            scrollAmount={160}
+            className="gap-2"
+          >
             {roles.map((r) => {
               const isSelected = selectedRole === r.id;
               return (
@@ -379,7 +385,7 @@ What question would you like to explore today?`;
                 </button>
               );
             })}
-          </div>
+          </ScrollableRibbon>
         </div>
 
         {/* Scrollable Chat Thread */}
@@ -481,7 +487,7 @@ What question would you like to explore today?`;
 
         {/* Quick Suggestion Chips */}
         <div
-          className={`p-2.5 border-t flex items-center gap-2 overflow-x-auto scrollbar-none ${
+          className={`p-2 border-t flex items-center gap-2 ${
             isDark ? 'border-slate-800/80 bg-slate-950/60' : 'border-slate-200/80 bg-slate-100/60'
           }`}
         >
@@ -489,7 +495,12 @@ What question would you like to explore today?`;
             <Zap className="w-3 h-3 text-amber-400" />
             <span className="hidden sm:inline">{t('أسئلة مقترحة سريعة:', 'Quick Prompts:')}</span>
           </span>
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+          <ScrollableRibbon
+            alwaysShowArrows={true}
+            arrowSize="xs"
+            scrollAmount={160}
+            className="gap-1.5 py-0.5"
+          >
             {quickPrompts.map((qp, idx) => (
               <button
                 key={idx}
@@ -507,7 +518,7 @@ What question would you like to explore today?`;
                 {isAr ? qp.textAr : qp.textEn}
               </button>
             ))}
-          </div>
+          </ScrollableRibbon>
         </div>
 
         {/* Input Bar */}

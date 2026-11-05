@@ -21,6 +21,7 @@ import {
 import { useApp, CalculatorTabType, AppDomain } from '../context/AppContext';
 import { STANDARD_REDUCTION_POTENTIALS } from '../data/curriculumData';
 import { playLabSound } from '../utils/soundEffects';
+import { ScrollableRibbon } from './ScrollableRibbon';
 
 interface ChemistryCalculatorModalProps {
   isOpen: boolean;
@@ -360,35 +361,35 @@ export const ChemistryCalculatorModal: React.FC<ChemistryCalculatorModalProps> =
           </button>
         </div>
 
-        {/* Horizontal Formula Ribbon */}
-        <div className={`p-2.5 border-b flex items-center gap-1.5 overflow-x-auto scrollbar-none ${
-          isDark ? 'bg-slate-950/20 border-slate-800/80' : 'bg-slate-50 border-slate-200/80'
-        }`}>
-          {(activeDomain === 'chemistry' ? chemTabs : physTabs).map(tabItem => {
-            const isSelected = activeTab === tabItem.id;
-            return (
-              <button
-                key={tabItem.id}
-                type="button"
-                onClick={() => {
-                  setActiveTab(tabItem.id);
-                  playLabSound('click');
-                }}
-                className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 transition-all border ${
-                  isSelected
-                    ? activeDomain === 'chemistry'
-                      ? 'bg-cyan-600 border-cyan-400 text-white shadow-sm'
-                      : 'bg-purple-600 border-purple-400 text-white shadow-sm'
-                    : isDark
-                    ? 'bg-slate-800/50 border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-800'
-                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <span>{tabItem.icon}</span>
-                <span>{isAr ? tabItem.labelAr : tabItem.labelEn}</span>
-              </button>
-            );
-          })}
+        {/* Horizontal Formula Ribbon with ScrollableRibbon Arrows */}
+        <div className={`border-b ${isDark ? 'bg-slate-950/20 border-slate-800/80' : 'bg-slate-50 border-slate-200/80'}`}>
+          <ScrollableRibbon scrollAmount={220} arrowSize="sm" alwaysShowArrows={true} containerClassName="p-2">
+            {(activeDomain === 'chemistry' ? chemTabs : physTabs).map(tabItem => {
+              const isSelected = activeTab === tabItem.id;
+              return (
+                <button
+                  key={tabItem.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(tabItem.id);
+                    playLabSound('click');
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 transition-all border mx-1 ${
+                    isSelected
+                      ? activeDomain === 'chemistry'
+                        ? 'bg-cyan-600 border-cyan-400 text-white shadow-sm'
+                        : 'bg-purple-600 border-purple-400 text-white shadow-sm'
+                      : isDark
+                      ? 'bg-slate-800/50 border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-800'
+                      : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>{tabItem.icon}</span>
+                  <span>{isAr ? tabItem.labelAr : tabItem.labelEn}</span>
+                </button>
+              );
+            })}
+          </ScrollableRibbon>
         </div>
 
         {/* Active Law Body */}

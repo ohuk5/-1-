@@ -21,6 +21,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { ScrollableRibbon } from './ScrollableRibbon';
 
 interface GuideModalProps {
   isOpen: boolean;
@@ -94,66 +95,73 @@ export const GuideModal: React.FC<GuideModalProps> = ({
           }`}
         >
           {/* Category Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 text-xs font-bold no-scrollbar">
-            <button
-              onClick={() => setActiveCategory('basics')}
-              className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                activeCategory === 'basics'
-                  ? 'bg-amber-600 border-amber-500 text-white shadow-md shadow-amber-600/30'
-                  : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
+          <div className="flex-1 min-w-0">
+            <ScrollableRibbon
+              alwaysShowArrows={true}
+              arrowSize="xs"
+              scrollAmount={160}
+              className="gap-1.5 text-xs font-bold"
             >
-              <span>🐣</span>
-              <span>{t('مقدمة المبتدئين', 'Beginner Basics')}</span>
-            </button>
+              <button
+                onClick={() => setActiveCategory('basics')}
+                className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                  activeCategory === 'basics'
+                    ? 'bg-amber-600 border-amber-500 text-white shadow-md shadow-amber-600/30'
+                    : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <span>🐣</span>
+                <span>{t('مقدمة المبتدئين', 'Beginner Basics')}</span>
+              </button>
 
-            <button
-              onClick={() => setActiveCategory('states')}
-              className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                activeCategory === 'states'
-                  ? 'bg-orange-600 border-orange-500 text-white shadow-md shadow-orange-600/30'
-                  : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <Flame className="w-3.5 h-3.5" />
-              <span>{t('أسرار حالات المادة والضغط', 'States & Pressure')}</span>
-            </button>
+              <button
+                onClick={() => setActiveCategory('states')}
+                className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                  activeCategory === 'states'
+                    ? 'bg-orange-600 border-orange-500 text-white shadow-md shadow-orange-600/30'
+                    : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <Flame className="w-3.5 h-3.5" />
+                <span>{t('أسرار حالات المادة والضغط', 'States & Pressure')}</span>
+              </button>
 
-            <button
-              onClick={() => setActiveCategory('atoms')}
-              className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                activeCategory === 'atoms'
-                  ? 'bg-cyan-600 border-cyan-500 text-white shadow-md shadow-cyan-600/30'
-                  : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <Atom className="w-3.5 h-3.5" />
-              <span>{t('بنية الذرة والجدول الدوري', 'Atoms & Table')}</span>
-            </button>
+              <button
+                onClick={() => setActiveCategory('atoms')}
+                className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                  activeCategory === 'atoms'
+                    ? 'bg-cyan-600 border-cyan-500 text-white shadow-md shadow-cyan-600/30'
+                    : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <Atom className="w-3.5 h-3.5" />
+                <span>{t('بنية الذرة والجدول الدوري', 'Atoms & Table')}</span>
+              </button>
 
-            <button
-              onClick={() => setActiveCategory('decay')}
-              className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                activeCategory === 'decay'
-                  ? 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-600/30'
-                  : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <Radiation className="w-3.5 h-3.5" />
-              <span>{t('عمر النصف والإشعاع', 'Half-Life & Decay')}</span>
-            </button>
+              <button
+                onClick={() => setActiveCategory('decay')}
+                className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                  activeCategory === 'decay'
+                    ? 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-600/30'
+                    : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <Radiation className="w-3.5 h-3.5" />
+                <span>{t('عمر النصف والإشعاع', 'Half-Life & Decay')}</span>
+              </button>
 
-            <button
-              onClick={() => setActiveCategory('missions')}
-              className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                activeCategory === 'missions'
-                  ? 'bg-purple-600 border-purple-500 text-white shadow-md shadow-purple-600/30'
-                  : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{t('مهمات وتجارب عملية', 'Missions & Labs')}</span>
-            </button>
+              <button
+                onClick={() => setActiveCategory('missions')}
+                className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                  activeCategory === 'missions'
+                    ? 'bg-purple-600 border-purple-500 text-white shadow-md shadow-purple-600/30'
+                    : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{t('مهمات وتجارب عملية', 'Missions & Labs')}</span>
+              </button>
+            </ScrollableRibbon>
           </div>
 
           {/* Quick Search Box */}

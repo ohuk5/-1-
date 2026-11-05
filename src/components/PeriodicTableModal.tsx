@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { X, Search, Filter, Sparkles, Check } from 'lucide-react';
 import { ALL_ELEMENTS, ElementInfo, CATEGORY_COLORS } from '../data/elementsData';
 import { useApp } from '../context/AppContext';
+import { ScrollableRibbon } from './ScrollableRibbon';
 
 interface PeriodicTableModalProps {
   isOpen: boolean;
@@ -130,60 +131,67 @@ export const PeriodicTableModal: React.FC<PeriodicTableModalProps> = ({
           </div>
 
           {/* Category Filter Pills & View Mode */}
-          <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 text-xs">
-            {/* View Mode Toggle (Table / Cards for Mobile) */}
-            <div className="flex items-center rounded-xl border border-slate-700/60 p-0.5 text-xs font-bold shrink-0 bg-slate-900/60 mr-1">
-              <button
-                type="button"
-                onClick={() => setViewMode('table')}
-                className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 ${
-                  viewMode === 'table'
-                    ? 'bg-cyan-600 text-white shadow-xs'
-                    : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title={t('جدول دوري (18 مجموعة)', 'Periodic Table Grid')}
-              >
-                <span>⊞</span>
-                <span className="text-[11px]">{t('جدول', 'Table')}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('cards')}
-                className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 ${
-                  viewMode === 'cards'
-                    ? 'bg-cyan-600 text-white shadow-xs'
-                    : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title={t('بطاقات عناصر للموبايل', 'Responsive Cards View')}
-              >
-                <span>▦</span>
-                <span className="text-[11px]">{t('بطاقات', 'Cards')}</span>
-              </button>
-            </div>
-
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`px-2.5 py-1.5 rounded-lg font-medium transition-all shrink-0 ${
-                selectedCategory === 'all'
-                  ? 'bg-cyan-600 text-white shadow-sm'
-                  : isDark ? 'bg-slate-800/80 text-slate-400 hover:text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-              }`}
+          <div className="flex-1 min-w-0">
+            <ScrollableRibbon
+              alwaysShowArrows={true}
+              arrowSize="xs"
+              scrollAmount={160}
+              className="gap-1.5 text-xs py-0.5"
             >
-              {t('الكل (118)', 'All (118)')}
-            </button>
-            {Object.entries(CATEGORY_COLORS).map(([catKey, val]) => (
+              {/* View Mode Toggle (Table / Cards for Mobile) */}
+              <div className="flex items-center rounded-xl border border-slate-700/60 p-0.5 text-xs font-bold shrink-0 bg-slate-900/60 mr-1">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('table')}
+                  className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 ${
+                    viewMode === 'table'
+                      ? 'bg-cyan-600 text-white shadow-xs'
+                      : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title={t('جدول دوري (18 مجموعة)', 'Periodic Table Grid')}
+                >
+                  <span>⊞</span>
+                  <span className="text-[11px]">{t('جدول', 'Table')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('cards')}
+                  className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 ${
+                    viewMode === 'cards'
+                      ? 'bg-cyan-600 text-white shadow-xs'
+                      : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title={t('بطاقات عناصر للموبايل', 'Responsive Cards View')}
+                >
+                  <span>▦</span>
+                  <span className="text-[11px]">{t('بطاقات', 'Cards')}</span>
+                </button>
+              </div>
+
               <button
-                key={catKey}
-                onClick={() => setSelectedCategory(catKey)}
-                className={`px-2 py-1 rounded-lg border text-[11px] font-medium transition-all shrink-0 ${val.border} ${
-                  selectedCategory === catKey
-                    ? `${val.bg} ${val.text} ring-1 ring-white/20 font-bold`
-                    : isDark ? 'bg-slate-900/50 text-slate-400 hover:text-slate-200' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                onClick={() => setSelectedCategory('all')}
+                className={`px-2.5 py-1.5 rounded-lg font-medium transition-all shrink-0 ${
+                  selectedCategory === 'all'
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : isDark ? 'bg-slate-800/80 text-slate-400 hover:text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                 }`}
               >
-                {t(val.badge, catKey)}
+                {t('الكل (118)', 'All (118)')}
               </button>
-            ))}
+              {Object.entries(CATEGORY_COLORS).map(([catKey, val]) => (
+                <button
+                  key={catKey}
+                  onClick={() => setSelectedCategory(catKey)}
+                  className={`px-2 py-1 rounded-lg border text-[11px] font-medium transition-all shrink-0 ${val.border} ${
+                    selectedCategory === catKey
+                      ? `${val.bg} ${val.text} ring-1 ring-white/20 font-bold`
+                      : isDark ? 'bg-slate-900/50 text-slate-400 hover:text-slate-200' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t(val.badge, catKey)}
+                </button>
+              ))}
+            </ScrollableRibbon>
           </div>
         </div>
 

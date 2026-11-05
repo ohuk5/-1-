@@ -35,6 +35,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { StatesOfMatter3D } from './StatesOfMatter3D';
 import { playLabSound } from '../utils/soundEffects';
+import { ScrollableRibbon } from './ScrollableRibbon';
 
 interface Particle {
   x: number;
@@ -1379,99 +1380,106 @@ export const StatesOfMatter: React.FC<StatesOfMatterProps> = ({ onOpenGuide }) =
           <span>{t('تجارب فيزيائية سريعة التطبيق:', 'Quick Physical Experiments:')}</span>
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 text-xs font-bold no-scrollbar flex-1">
-          <button
-            onClick={() => openCurriculum(1)}
-            className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white transition-all whitespace-nowrap flex items-center gap-1 shadow-xs"
-            title={t('مرجع المحاليل والمخاليط والخواص الجامعة من كتاب كيمياء 3', 'Mixtures, Solutions & Colligative Reference')}
+        <div className="flex-1 min-w-0">
+          <ScrollableRibbon
+            alwaysShowArrows={true}
+            arrowSize="xs"
+            scrollAmount={180}
+            className="gap-1.5 text-xs font-bold pb-1 md:pb-0"
           >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>{t('مرجع المحاليل (كيمياء 3)', 'Solutions Ref')}</span>
-          </button>
+            <button
+              onClick={() => openCurriculum(1)}
+              className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white transition-all whitespace-nowrap flex items-center gap-1 shadow-xs"
+              title={t('مرجع المحاليل والمخاليط والخواص الجامعة من كتاب كيمياء 3', 'Mixtures, Solutions & Colligative Reference')}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>{t('مرجع المحاليل (كيمياء 3)', 'Solutions Ref')}</span>
+            </button>
 
-          <button
-            onClick={() => openCalculator('colligative')}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 transition-all whitespace-nowrap ${
-              isDark
-                ? 'bg-slate-950 hover:bg-slate-800 border-amber-500/40 text-amber-400'
-                : 'bg-white hover:bg-slate-50 border-amber-300 text-amber-700'
-            }`}
-            title={t('حاسبة الغليان والتجمد والضغط الأسموزي', 'Colligative Elevation & Depression Calculator')}
-          >
-            <Gauge className="w-3.5 h-3.5" />
-            <span>{t('حاسبة الغليان والتجمد', 'Colligative Calc')}</span>
-          </button>
-          <button
-            onClick={() => runExperiment('space_drop')}
-            className="px-3 py-1.5 rounded-xl bg-sky-950/70 hover:bg-sky-900/80 border border-sky-600/50 text-sky-200 transition-all whitespace-nowrap flex items-center gap-1"
-          >
-            <span>🚀</span>
-            <span>{t('كرة الماء بالفضاء', 'Zero-G Water Drop')}</span>
-          </button>
+            <button
+              onClick={() => openCalculator('colligative')}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 transition-all whitespace-nowrap ${
+                isDark
+                  ? 'bg-slate-950 hover:bg-slate-800 border-amber-500/40 text-amber-400'
+                  : 'bg-white hover:bg-slate-50 border-amber-300 text-amber-700'
+              }`}
+              title={t('حاسبة الغليان والتجمد والضغط الأسموزي', 'Colligative Elevation & Depression Calculator')}
+            >
+              <Gauge className="w-3.5 h-3.5" />
+              <span>{t('حاسبة الغليان والتجمد', 'Colligative Calc')}</span>
+            </button>
+            <button
+              onClick={() => runExperiment('space_drop')}
+              className="px-3 py-1.5 rounded-xl bg-sky-950/70 hover:bg-sky-900/80 border border-sky-600/50 text-sky-200 transition-all whitespace-nowrap flex items-center gap-1"
+            >
+              <span>🚀</span>
+              <span>{t('كرة الماء بالفضاء', 'Zero-G Water Drop')}</span>
+            </button>
 
-          <button
-            onClick={() => runExperiment('pressure_cooker')}
-            className="px-3 py-1.5 rounded-xl bg-cyan-950/70 hover:bg-cyan-900/80 border border-cyan-600/50 text-cyan-200 transition-all whitespace-nowrap flex items-center gap-1"
-          >
-            <span>🍲</span>
-            <span>{t('قدر الضغط والتسييل', 'Pressure Cooker')}</span>
-          </button>
+            <button
+              onClick={() => runExperiment('pressure_cooker')}
+              className="px-3 py-1.5 rounded-xl bg-cyan-950/70 hover:bg-cyan-900/80 border border-cyan-600/50 text-cyan-200 transition-all whitespace-nowrap flex items-center gap-1"
+            >
+              <span>🍲</span>
+              <span>{t('قدر الضغط والتسييل', 'Pressure Cooker')}</span>
+            </button>
 
-          <button
-            onClick={() => runExperiment('co2_sublime')}
-            className="px-3 py-1.5 rounded-xl bg-amber-950/70 hover:bg-amber-900/80 border border-amber-600/50 text-amber-200 transition-all whitespace-nowrap flex items-center gap-1"
-          >
-            <span>❄️</span>
-            <span>{t('تسامي الجليد الجاف', 'CO₂ Sublimation')}</span>
-          </button>
+            <button
+              onClick={() => runExperiment('co2_sublime')}
+              className="px-3 py-1.5 rounded-xl bg-amber-950/70 hover:bg-amber-900/80 border border-amber-600/50 text-amber-200 transition-all whitespace-nowrap flex items-center gap-1"
+            >
+              <span>❄️</span>
+              <span>{t('تسامي الجليد الجاف', 'CO₂ Sublimation')}</span>
+            </button>
 
-          <button
-            onClick={() => runExperiment('gold_melt')}
-            className="px-3 py-1.5 rounded-xl bg-yellow-950/70 hover:bg-yellow-900/80 border border-yellow-600/50 text-yellow-200 transition-all whitespace-nowrap flex items-center gap-1"
-          >
-            <span>✨</span>
-            <span>{t('صهر الذهب (1337 K)', 'Melt Gold (1337 K)')}</span>
-          </button>
+            <button
+              onClick={() => runExperiment('gold_melt')}
+              className="px-3 py-1.5 rounded-xl bg-yellow-950/70 hover:bg-yellow-900/80 border border-yellow-600/50 text-yellow-200 transition-all whitespace-nowrap flex items-center gap-1"
+            >
+              <span>✨</span>
+              <span>{t('صهر الذهب (1337 K)', 'Melt Gold (1337 K)')}</span>
+            </button>
 
-          <button
-            onClick={() => runExperiment('bromine_vapor')}
-            className="px-3 py-1.5 rounded-xl bg-rose-950/70 hover:bg-rose-900/80 border border-rose-600/50 text-rose-200 transition-all whitespace-nowrap flex items-center gap-1"
-          >
-            <span>💨</span>
-            <span>{t('تبخير البروم السائل', 'Boil Bromine')}</span>
-          </button>
+            <button
+              onClick={() => runExperiment('bromine_vapor')}
+              className="px-3 py-1.5 rounded-xl bg-rose-950/70 hover:bg-rose-900/80 border border-rose-600/50 text-rose-200 transition-all whitespace-nowrap flex items-center gap-1"
+            >
+              <span>💨</span>
+              <span>{t('تبخير البروم السائل', 'Boil Bromine')}</span>
+            </button>
 
-          <button
-            onClick={() => runExperiment('mercury_liquid')}
-            className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 text-slate-200 transition-all whitespace-nowrap flex items-center gap-1"
-          >
-            <span>🧪</span>
-            <span>{t('الزئبق السائل', 'Liquid Mercury')}</span>
-          </button>
+            <button
+              onClick={() => runExperiment('mercury_liquid')}
+              className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 text-slate-200 transition-all whitespace-nowrap flex items-center gap-1"
+            >
+              <span>🧪</span>
+              <span>{t('الزئبق السائل', 'Liquid Mercury')}</span>
+            </button>
 
-          <button
-            onClick={() => runExperiment('iodine_sublime')}
-            className="px-3 py-1.5 rounded-xl bg-purple-950/70 hover:bg-purple-900/80 border border-purple-600/50 text-purple-200 transition-all whitespace-nowrap flex items-center gap-1"
-          >
-            <span>🟣</span>
-            <span>{t('تسامي اليود البنفسجي', 'Iodine Sublimation')}</span>
-          </button>
+            <button
+              onClick={() => runExperiment('iodine_sublime')}
+              className="px-3 py-1.5 rounded-xl bg-purple-950/70 hover:bg-purple-900/80 border border-purple-600/50 text-purple-200 transition-all whitespace-nowrap flex items-center gap-1"
+            >
+              <span>🟣</span>
+              <span>{t('تسامي اليود البنفسجي', 'Iodine Sublimation')}</span>
+            </button>
 
-          <button
-            onClick={() => runExperiment('liquid_hydrogen')}
-            className="px-3 py-1.5 rounded-xl bg-blue-950/70 hover:bg-blue-900/80 border border-blue-600/50 text-blue-200 transition-all whitespace-nowrap flex items-center gap-1"
-          >
-            <span>❄️</span>
-            <span>{t('الهيدروجين فائق البرودة', 'Cryogenic H₂ (17 K)')}</span>
-          </button>
+            <button
+              onClick={() => runExperiment('liquid_hydrogen')}
+              className="px-3 py-1.5 rounded-xl bg-blue-950/70 hover:bg-blue-900/80 border border-blue-600/50 text-blue-200 transition-all whitespace-nowrap flex items-center gap-1"
+            >
+              <span>❄️</span>
+              <span>{t('الهيدروجين فائق البرودة', 'Cryogenic H₂ (17 K)')}</span>
+            </button>
 
-          <button
-            onClick={() => runExperiment('plasma_arc')}
-            className="px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-purple-900/90 border border-purple-500/60 text-purple-200 transition-all whitespace-nowrap flex items-center gap-1"
-          >
-            <span>⚡</span>
-            <span>{t('توليد البلازما الفائقة', 'Super Plasma Arc')}</span>
-          </button>
+            <button
+              onClick={() => runExperiment('plasma_arc')}
+              className="px-3 py-1.5 rounded-xl bg-purple-950/80 hover:bg-purple-900/90 border border-purple-500/60 text-purple-200 transition-all whitespace-nowrap flex items-center gap-1"
+            >
+              <span>⚡</span>
+              <span>{t('توليد البلازما الفائقة', 'Super Plasma Arc')}</span>
+            </button>
+          </ScrollableRibbon>
         </div>
 
         {onOpenGuide && (

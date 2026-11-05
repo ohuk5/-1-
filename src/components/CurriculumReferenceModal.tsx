@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { OFFICIAL_GLOSSARY, CURRICULUM_LAWS, TEXTBOOK_EXPERIMENTS } from '../data/curriculumData';
+import { ScrollableRibbon } from './ScrollableRibbon';
 
 interface CurriculumReferenceModalProps {
   isOpen: boolean;
@@ -110,62 +111,64 @@ export const CurriculumReferenceModal: React.FC<CurriculumReferenceModalProps> =
             isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-slate-100 border-slate-200'
           }`}
         >
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs font-bold">
-            <button
-              onClick={() => setActiveSection('chapters')}
-              className={`px-3.5 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                activeSection === 'chapters'
-                  ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
-                  : isDark
-                  ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              <Layers className="w-4 h-4" />
-              <span>{t('فصول المنهج الأربعة', 'The 4 Chapters')}</span>
-            </button>
+          <div className="flex-1 min-w-0">
+            <ScrollableRibbon scrollAmount={180} arrowSize="sm" alwaysShowArrows={true}>
+              <button
+                onClick={() => setActiveSection('chapters')}
+                className={`px-3.5 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 mx-1 ${
+                  activeSection === 'chapters'
+                    ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
+                    : isDark
+                    ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                <Layers className="w-4 h-4" />
+                <span>{t('فصول المنهج الأربعة', 'The 4 Chapters')}</span>
+              </button>
 
-            <button
-              onClick={() => setActiveSection('glossary')}
-              className={`px-3.5 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                activeSection === 'glossary'
-                  ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
-                  : isDark
-                  ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>{t('مسرد المصطلحات المعتمدة (ص 170-175)', 'Official Glossary (p. 170-175)')}</span>
-            </button>
+              <button
+                onClick={() => setActiveSection('glossary')}
+                className={`px-3.5 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 mx-1 ${
+                  activeSection === 'glossary'
+                    ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
+                    : isDark
+                    ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>{t('مسرد المصطلحات المعتمدة (ص 170-175)', 'Official Glossary (p. 170-175)')}</span>
+              </button>
 
-            <button
-              onClick={() => setActiveSection('laws')}
-              className={`px-3.5 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                activeSection === 'laws'
-                  ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
-                  : isDark
-                  ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              <Calculator className="w-4 h-4" />
-              <span>{t('القوانين الرياضية والحسابات', 'Chemical Laws & Formulas')}</span>
-            </button>
+              <button
+                onClick={() => setActiveSection('laws')}
+                className={`px-3.5 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 mx-1 ${
+                  activeSection === 'laws'
+                    ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
+                    : isDark
+                    ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                <Calculator className="w-4 h-4" />
+                <span>{t('القوانين الرياضية والحسابات', 'Chemical Laws & Formulas')}</span>
+              </button>
 
-            <button
-              onClick={() => setActiveSection('experiments')}
-              className={`px-3.5 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                activeSection === 'experiments'
-                  ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
-                  : isDark
-                  ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              <FlaskConical className="w-4 h-4" />
-              <span>{t('دليل تجارب الكتاب (14 تجربة)', 'Textbook 14 Labs')}</span>
-            </button>
+              <button
+                onClick={() => setActiveSection('experiments')}
+                className={`px-3.5 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 mx-1 ${
+                  activeSection === 'experiments'
+                    ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
+                    : isDark
+                    ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                <FlaskConical className="w-4 h-4" />
+                <span>{t('دليل تجارب الكتاب (14 تجربة)', 'Textbook 14 Labs')}</span>
+              </button>
+            </ScrollableRibbon>
           </div>
 
           {/* Quick Search */}
@@ -480,8 +483,8 @@ export const CurriculumReferenceModal: React.FC<CurriculumReferenceModalProps> =
           {/* SECTION 2: OFFICIAL GLOSSARY */}
           {activeSection === 'glossary' && (
             <div className="space-y-4">
-              {/* Category Filter Pills */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-semibold">
+              {/* Category Filter Pills with ScrollableRibbon Arrows */}
+              <ScrollableRibbon scrollAmount={160} arrowSize="xs" alwaysShowArrows={true}>
                 {[
                   { id: 'all', label: t('جميع المصطلحات (35+)', 'All Terms (35+)') },
                   { id: 'solutions', label: t('المخاليط والمحاليل (فصل 1)', 'Solutions (Ch 1)') },
@@ -492,7 +495,7 @@ export const CurriculumReferenceModal: React.FC<CurriculumReferenceModalProps> =
                   <button
                     key={cat.id}
                     onClick={() => setGlossaryFilter(cat.id as any)}
-                    className={`px-3 py-1.5 rounded-xl border transition-colors whitespace-nowrap ${
+                    className={`px-3 py-1.5 rounded-xl border transition-colors whitespace-nowrap mx-0.5 ${
                       glossaryFilter === cat.id
                         ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-bold'
                         : isDark
@@ -503,7 +506,7 @@ export const CurriculumReferenceModal: React.FC<CurriculumReferenceModalProps> =
                     {cat.label}
                   </button>
                 ))}
-              </div>
+              </ScrollableRibbon>
 
               {/* Glossary Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">

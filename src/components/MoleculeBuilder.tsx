@@ -29,6 +29,7 @@ import {
 } from '../data/compoundsData';
 import { MoleculeViewer3D } from './MoleculeViewer3D';
 import { playLabSound } from '../utils/soundEffects';
+import { ScrollableRibbon } from './ScrollableRibbon';
 
 interface MoleculeBuilderProps {
   onOpenGuide?: (category?: 'basics' | 'states' | 'atoms' | 'decay' | 'missions') => void;
@@ -342,7 +343,12 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
             </div>
 
             {/* Quick Category Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-2 mb-3">
+            <ScrollableRibbon
+              alwaysShowArrows={true}
+              arrowSize="xs"
+              scrollAmount={140}
+              className="gap-1.5 pb-2 mb-3"
+            >
               {[
                 { id: 'all', labelAr: 'الكل (46)', labelEn: 'All' },
                 { id: 'bio', labelAr: 'الحيوية', labelEn: 'Bio' },
@@ -366,7 +372,7 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
                   {t(cat.labelAr, cat.labelEn)}
                 </button>
               ))}
-            </div>
+            </ScrollableRibbon>
 
             {/* Scrollable Elements Grid (Right-Side Dock) */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[580px] overflow-y-auto scrollbar-thin pe-1">
@@ -463,7 +469,12 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
                   <span>↗</span>
                 </button>
               </div>
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              <ScrollableRibbon
+                alwaysShowArrows={true}
+                arrowSize="xs"
+                scrollAmount={140}
+                className="gap-1.5 pb-1"
+              >
                 {['H', 'C', 'N', 'O', 'Na', 'Cl', 'Fe', 'Cu', 'S', 'P', 'Ca', 'K'].map(sym => {
                   const el = BUILDER_ELEMENTS_MAP.get(sym);
                   if (!el) return null;
@@ -484,7 +495,7 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
                     </button>
                   );
                 })}
-              </div>
+              </ScrollableRibbon>
             </div>
 
             {/* Dropped Atoms List / Timeline */}
@@ -828,7 +839,12 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
             </div>
 
             {/* Category Filter Tabs */}
-            <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-2 mb-2.5">
+            <ScrollableRibbon
+              alwaysShowArrows={true}
+              arrowSize="xs"
+              scrollAmount={140}
+              className="gap-1 pb-2 mb-2.5"
+            >
               {[
                 { id: 'all', labelAr: 'الكل', labelEn: 'All' },
                 { id: 'water_oxide', labelAr: 'أكاسيد', labelEn: 'Oxides' },
@@ -852,7 +868,7 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
                   {t(cat.labelAr, cat.labelEn)}
                 </button>
               ))}
-            </div>
+            </ScrollableRibbon>
 
             {/* Recipe Buttons Grid */}
             <div className="grid grid-cols-2 gap-2 max-h-[260px] overflow-y-auto scrollbar-thin pe-1">
@@ -947,7 +963,12 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
             </div>
 
             {/* Category Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1">
+            <ScrollableRibbon
+              alwaysShowArrows={true}
+              arrowSize="xs"
+              scrollAmount={140}
+              className="gap-1.5 pb-1"
+            >
               {[
                 { id: 'all', labelAr: 'الكل (46)', labelEn: 'All (46)' },
                 { id: 'bio', labelAr: 'الحيوية', labelEn: 'Bio' },
@@ -969,7 +990,7 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
                   {t(cat.labelAr, cat.labelEn)}
                 </button>
               ))}
-            </div>
+            </ScrollableRibbon>
 
             {/* Elements Grid (tap to add directly!) */}
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 overflow-y-auto max-h-[48vh] pe-1 py-1">

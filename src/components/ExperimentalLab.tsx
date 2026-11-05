@@ -37,6 +37,7 @@ import { GraduatedCylinderPipette } from './GraduatedCylinderPipette';
 import { TestTubeRackModule } from './TestTubeRackModule';
 import { SpectrometerDischargeModule } from './SpectrometerDischargeModule';
 import { playLabSound, LabSoundType } from '../utils/soundEffects';
+import { ScrollableRibbon } from './ScrollableRibbon';
 
 // Reagent definition for safe chemical lab
 interface LabReagent {
@@ -5169,7 +5170,12 @@ export const ExperimentalLab: React.FC = () => {
           </p>
 
           {/* Quick Mission Selectors */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+          <ScrollableRibbon
+            alwaysShowArrows={true}
+            arrowSize="xs"
+            scrollAmount={160}
+            className="gap-1.5 text-xs pb-1"
+          >
             {GUIDED_MISSIONS.map(m => (
               <button
                 key={m.id}
@@ -5187,7 +5193,7 @@ export const ExperimentalLab: React.FC = () => {
                 {t(m.titleAr.split(' ')[1] || m.titleAr, m.titleEn.split(' ')[1] || m.titleEn)}
               </button>
             ))}
-          </div>
+          </ScrollableRibbon>
         </div>
       )}
 
@@ -5208,7 +5214,12 @@ export const ExperimentalLab: React.FC = () => {
         </div>
 
         {/* Reaction Recipe Selector Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 no-scrollbar">
+        <ScrollableRibbon
+          alwaysShowArrows={true}
+          arrowSize="sm"
+          scrollAmount={200}
+          className="gap-2 pb-1.5"
+        >
           {REACTION_RECIPES.map(item => {
             const isSelected = selectedRecipeId === item.id;
             const done = item.isCompleted(content);
@@ -5239,7 +5250,7 @@ export const ExperimentalLab: React.FC = () => {
               </button>
             );
           })}
-        </div>
+        </ScrollableRibbon>
 
         {/* Selected Reaction Step-by-Step Instruction Card */}
         <div className={`p-3.5 sm:p-4 rounded-xl border space-y-3 transition-all ${
@@ -5551,7 +5562,12 @@ export const ExperimentalLab: React.FC = () => {
             </div>
 
             {/* Category Filter Tabs for the 50 Chemical Reagents */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[11px] font-bold no-scrollbar">
+            <ScrollableRibbon
+              alwaysShowArrows={true}
+              arrowSize="xs"
+              scrollAmount={140}
+              className="gap-1 text-[11px] font-bold pb-1"
+            >
               {[
                 { id: 'all', labelAr: `الكل (${REAGENTS.length})`, labelEn: `All (${REAGENTS.length})` },
                 { id: 'acids_bases', labelAr: 'أحماض قوية وقواعد', labelEn: 'Acids & Bases' },
@@ -5573,7 +5589,7 @@ export const ExperimentalLab: React.FC = () => {
                   {t(cat.labelAr, cat.labelEn)}
                 </button>
               ))}
-            </div>
+            </ScrollableRibbon>
 
             {/* Chemical Reagents Shelf Buttons */}
             <div className="space-y-2 max-h-[460px] overflow-y-auto overflow-x-hidden pr-1">
