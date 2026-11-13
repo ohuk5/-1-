@@ -420,7 +420,7 @@ export const ThreePhysicsStage: React.FC<ThreePhysicsStageProps> = ({
     >
       {/* External Top Header & Camera Toolbar (Zero Overlap with 3D Stage) */}
       <div
-        className={`px-4 py-3 border-b flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 ${
+        className={`px-4 py-3 border-b flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 tablet-toolbar-wrap ${
           isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-900'
         }`}
       >
@@ -435,7 +435,7 @@ export const ThreePhysicsStage: React.FC<ThreePhysicsStageProps> = ({
           <span className={`text-[11px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>· WebGL 3D</span>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap tablet-toolbar-wrap">
           <div
             className={`flex items-center gap-0.5 p-0.5 rounded-lg border ${
               isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
@@ -497,7 +497,7 @@ export const ThreePhysicsStage: React.FC<ThreePhysicsStageProps> = ({
       <div
         ref={mountRef}
         className={`w-full relative overflow-hidden bg-slate-950 cursor-grab active:cursor-grabbing touch-none ${
-          isFullscreen ? 'flex-1 min-h-0' : 'h-[450px] sm:h-[510px]'
+          isFullscreen ? 'flex-1 min-h-0' : 'h-[450px] sm:h-[510px] tablet-stage-canvas'
         }`}
       />
 
@@ -539,7 +539,7 @@ export const ThreePhysicsStage: React.FC<ThreePhysicsStageProps> = ({
         </div>
 
         {!isDockCollapsed && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-1 tablet-3d-controls-grid">
             {/* ======================================= */}
             {/* 1. OPTICS 3D CONTROLS                   */}
             {/* ======================================= */}

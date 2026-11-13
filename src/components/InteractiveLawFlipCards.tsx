@@ -195,11 +195,11 @@ export const InteractiveLawFlipCards: React.FC<InteractiveLawFlipCardsProps> = (
           {t('لا توجد بطاقات مطابقة لبحثك.', 'No matching law flashcards found.')}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 tablet-cards-grid">
           {filteredCards.map((card) => {
             const isFlipped = !!flippedIds[card.id];
             return (
-              <div key={card.id} className="perspective-1200 min-h-[290px]">
+              <div key={card.id} className="perspective-1200 min-h-[290px] tablet-law-card">
                 <div
                   role="button"
                   tabIndex={0}

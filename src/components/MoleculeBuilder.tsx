@@ -725,10 +725,10 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
         </div>
       ) : (
       /* 2. Three-Column Ergonomic Layout (Compounds & VSEPR): */
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start tablet-molecule-layout">
         
-        {/* RIGHT SIDE DOCK (in RTL): Draggable Elements Palette (Visible on Desktop lg:col-span-4) */}
-        <div className="hidden lg:flex lg:col-span-4 xl:col-span-4 flex-col gap-4 sticky top-24">
+        {/* RIGHT SIDE DOCK (in RTL): Draggable Elements Palette (Visible on Tablet & Desktop) */}
+        <div className="hidden md:flex lg:col-span-4 xl:col-span-4 flex-col gap-4 sticky top-24 tablet-molecule-palette">
           <div className={`p-5 sm:p-6 rounded-3xl border transition-all ${
             isDark ? 'bg-slate-900/90 border-slate-800 shadow-lg' : 'bg-white border-slate-200 shadow-sm'
           }`}>
@@ -800,7 +800,7 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
             </ScrollableRibbon>
 
             {/* Scrollable Elements Grid (Right-Side Dock) */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[580px] overflow-y-auto scrollbar-thin pe-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[580px] overflow-y-auto scrollbar-thin pe-1 tablet-element-grid">
               {filteredElements.map(el => {
                 const currentCount = elementCounts[el.symbol] || 0;
                 return (
@@ -855,7 +855,7 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
         </div>
 
         {/* CENTER STAGE: Workbench Drop Target & 3D Viewer & Stability (lg:col-span-8 xl:col-span-5) */}
-        <div className="lg:col-span-8 xl:col-span-5 flex flex-col gap-6">
+        <div className="lg:col-span-8 xl:col-span-5 flex flex-col gap-6 tablet-molecule-stage">
           
           {/* Reaction Chamber Drop Zone */}
           <div
@@ -878,8 +878,8 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
               </span>
             </div>
 
-            {/* Mobile Quick Elements Strip & Drawer Launcher (Visible on mobile/tablet < lg) */}
-            <div className="lg:hidden flex flex-col gap-2 mb-4 p-3 rounded-2xl bg-cyan-950/40 border border-cyan-800/50">
+            {/* Mobile Quick Elements Strip & Drawer Launcher (Visible on mobile < 768px; tablets show full palette inline) */}
+            <div className="md:hidden flex flex-col gap-2 mb-4 p-3 rounded-2xl bg-cyan-950/40 border border-cyan-800/50">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
@@ -1326,7 +1326,7 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
         </div>
 
         {/* LEFT COLUMN: Scientific Dossier & Recipes Library (lg:col-span-12 xl:col-span-3) */}
-        <div className="lg:col-span-12 xl:col-span-3 flex flex-col gap-6">
+        <div className="lg:col-span-12 xl:col-span-3 flex flex-col gap-6 tablet-molecule-dossier">
           
           {/* Detailed Compound Scientific Dossier */}
           {activeCompound ? (
@@ -1548,7 +1548,7 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
 
       {/* Mobile Floating Action Button (FAB) */}
       {builderSubMode === 'compounds' && (
-      <div className="fixed bottom-5 end-5 z-40 lg:hidden">
+      <div className="fixed bottom-5 end-5 z-40 md:hidden">
         <button
           type="button"
           onClick={() => setIsMobilePaletteOpen(true)}
@@ -1567,7 +1567,7 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
 
       {/* Mobile Bottom Sheet Drawer Modal */}
       {isMobilePaletteOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden flex flex-col justify-end bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
           <div
             className="absolute inset-0"
             onClick={() => setIsMobilePaletteOpen(false)}

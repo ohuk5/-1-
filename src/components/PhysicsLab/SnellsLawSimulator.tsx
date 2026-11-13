@@ -984,9 +984,9 @@ export const SnellsLawSimulator: React.FC = () => {
       {/* VIEW MODE 2: FIBER OPTICS & TOTAL INTERNAL REFLECTION (فيزياء 3 ثانوي) */}
       {simViewMode === 'fiber' && (
         <div className="w-full flex flex-col gap-5 animate-fadeIn">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 tablet-sim-grid">
             {/* Canvas Section */}
-            <div className="lg:col-span-8 min-w-0 flex flex-col gap-3">
+            <div className="lg:col-span-8 min-w-0 flex flex-col gap-3 tablet-sim-stage">
               <div className={`rounded-3xl border overflow-hidden relative shadow-md ${
                 isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
               }`}>
@@ -1076,7 +1076,7 @@ export const SnellsLawSimulator: React.FC = () => {
             </div>
 
             {/* Controls Deck */}
-            <div className="lg:col-span-4 min-w-0 flex flex-col gap-4">
+            <div className="lg:col-span-4 min-w-0 flex flex-col gap-4 tablet-sim-controls">
               <div className={`p-5 rounded-3xl border flex flex-col gap-4 shadow-sm ${
                 isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
               }`}>
@@ -1226,9 +1226,9 @@ export const SnellsLawSimulator: React.FC = () => {
 
       {/* VIEW MODE 3: 2D PRECISION SNELL SIMULATOR */}
       {simViewMode === '2d' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 tablet-sim-grid">
         {/* Canvas Section (Col 1-8) */}
-        <div className="lg:col-span-8 min-w-0 flex flex-col gap-3">
+        <div className="lg:col-span-8 min-w-0 flex flex-col gap-3 tablet-sim-stage">
           <div className={`rounded-3xl border overflow-hidden relative shadow-md ${
             isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
           }`}>
@@ -1412,7 +1412,7 @@ export const SnellsLawSimulator: React.FC = () => {
         </div>
 
         {/* Right Controls Deck (Col 9-12) */}
-        <div className="lg:col-span-4 min-w-0 flex flex-col gap-4">
+        <div className="lg:col-span-4 min-w-0 flex flex-col gap-4 tablet-sim-controls">
           <div className={`p-5 rounded-3xl border flex flex-col gap-4 shadow-sm ${
             isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
           }`}>

@@ -504,9 +504,9 @@ export const SphericalMirrorsSimulator: React.FC = () => {
       </div>
 
       {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 tablet-sim-grid">
         {/* Canvas Section */}
-        <div className="lg:col-span-8 min-w-0 flex flex-col gap-3">
+        <div className="lg:col-span-8 min-w-0 flex flex-col gap-3 tablet-sim-stage">
           <div className={`rounded-3xl border overflow-hidden relative shadow-md ${
             isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
           }`}>
@@ -567,7 +567,7 @@ export const SphericalMirrorsSimulator: React.FC = () => {
         </div>
 
         {/* Controls Deck */}
-        <div className="lg:col-span-4 min-w-0 flex flex-col gap-4">
+        <div className="lg:col-span-4 min-w-0 flex flex-col gap-4 tablet-sim-controls">
           <div className={`p-5 rounded-3xl border flex flex-col gap-4 shadow-sm ${
             isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
           }`}>

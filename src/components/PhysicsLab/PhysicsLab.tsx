@@ -132,7 +132,8 @@ export const PhysicsLab: React.FC<PhysicsLabProps> = () => {
 
       {/* Sticky 2D / 3D / Law Cards Switcher Bar (Always accessible even when scrolled in 2D) */}
       <div
-        className={`sticky top-[142px] md:top-[144px] lg:top-[108px] z-30 rounded-2xl border px-3 sm:px-4 py-2.5 backdrop-blur-md transition-colors flex flex-wrap items-center justify-between gap-2.5 ${
+        style={{ top: 'calc(var(--app-header-height, 138px) + 8px)' }}
+        className={`sticky z-30 rounded-2xl border px-3 sm:px-4 py-2.5 backdrop-blur-md transition-colors flex flex-wrap items-center justify-between gap-2.5 tablet-sticky-switcher ${
           isDark
             ? 'bg-slate-900/95 border-slate-800 shadow-lg shadow-slate-950/50'
             : 'bg-white/95 border-slate-200 shadow-sm'

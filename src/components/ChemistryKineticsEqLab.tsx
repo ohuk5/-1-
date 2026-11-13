@@ -525,9 +525,9 @@ export const ChemistryKineticsEqLab: React.FC<ChemistryKineticsEqLabProps> = ({ 
 
   return (
     <div className="w-full space-y-5" dir={isAr ? 'rtl' : 'ltr'}>
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start tablet-sim-grid">
         {/* Controls & Preset Panel (5 cols) */}
-        <div className="lg:col-span-5 flex flex-col gap-4">
+        <div className="lg:col-span-5 flex flex-col gap-4 tablet-sim-controls">
           {mode === 'kinetics' && (
             <div className={`p-5 rounded-2xl border space-y-4 ${isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'}`}>
               <div className="flex items-center justify-between">
@@ -854,7 +854,7 @@ export const ChemistryKineticsEqLab: React.FC<ChemistryKineticsEqLabProps> = ({ 
         </div>
 
         {/* Main 2D / 3D Viewport (7 cols) */}
-        <div className="lg:col-span-7 flex flex-col gap-4">
+        <div className="lg:col-span-7 flex flex-col gap-4 tablet-sim-stage">
           <div className={`p-4 rounded-2xl border space-y-3 shadow-lg ${isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1 p-1 bg-slate-950/80 border border-slate-800 rounded-xl">

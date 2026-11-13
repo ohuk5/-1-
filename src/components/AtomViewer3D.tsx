@@ -1061,7 +1061,7 @@ export const AtomViewer3D: React.FC<AtomViewer3DProps> = ({
   };
 
   return (
-    <div className="w-full max-w-[460px]">
+    <div className="w-full max-w-[560px]">
       <StageViewportFrame
         isFullscreen={isFullscreen}
         canvasHeightClass="h-[340px] sm:h-[380px]"
@@ -1077,8 +1077,8 @@ export const AtomViewer3D: React.FC<AtomViewer3DProps> = ({
           </>
         }
         subtitle={
-          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-            <div className={`inline-flex items-center gap-0.5 p-0.5 rounded-lg border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+          <div className="w-full flex items-center gap-1.5 flex-wrap">
+            <div className={`flex flex-wrap items-center gap-0.5 p-0.5 rounded-lg border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
               <button
                 type="button"
                 onClick={() => {
@@ -1151,7 +1151,7 @@ export const AtomViewer3D: React.FC<AtomViewer3DProps> = ({
           </div>
         }
         toolbar={
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
               onClick={() => setAutoRotate(!autoRotate)}

@@ -5351,9 +5351,9 @@ export const ExperimentalLab: React.FC = () => {
       </div>
 
       {/* MAIN WORKBENCH RESPONSIVE CONTAINER */}
-      <div className="w-full flex flex-col md:flex-row gap-5 items-start overflow-x-hidden">
+      <div className="w-full flex flex-col md:flex-row gap-5 items-start overflow-x-hidden tablet-lab-layout">
         {/* Left Column: Reagents & Safe Chemical Shelf */}
-        <div className="w-full md:w-[300px] lg:w-[330px] xl:w-[350px] shrink-0 min-w-0 flex flex-col gap-4 order-2 md:order-1">
+        <div className="w-full md:w-[300px] lg:w-[330px] xl:w-[350px] shrink-0 min-w-0 flex flex-col gap-4 order-2 md:order-1 tablet-lab-sidebar">
           <div className={`p-4 sm:p-5 rounded-2xl border space-y-4 shadow-lg ${
             isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'
           }`}>
@@ -5711,7 +5711,7 @@ export const ExperimentalLab: React.FC = () => {
         </div>
 
         {/* Main Simulation Stage & Instruments */}
-        <div className="w-full flex-1 min-w-0 flex flex-col xl:flex-row gap-5 order-1 md:order-2">
+        <div className="w-full flex-1 min-w-0 flex flex-col xl:flex-row gap-5 order-1 md:order-2 tablet-lab-stage-row">
           {/* Middle Column: Interactive Beaker Workbench & Real-time Canvas */}
           <div className="w-full xl:flex-1 min-w-0 flex flex-col gap-4 items-center">
           <div className={`w-full min-w-0 p-4 rounded-2xl border shadow-lg flex flex-col items-center relative ${
@@ -6268,7 +6268,7 @@ export const ExperimentalLab: React.FC = () => {
         </div>
 
           {/* Right Column: Precision Instruments (pH Meter, Thermometer, Balance) */}
-          <div className="w-full xl:w-[300px] shrink-0 min-w-0 grid grid-cols-1 sm:grid-cols-3 xl:flex xl:flex-col gap-4">
+          <div className="w-full xl:w-[300px] shrink-0 min-w-0 grid grid-cols-1 sm:grid-cols-3 xl:flex xl:flex-col gap-4 tablet-lab-telemetry">
           {/* Digital pH Meter Card */}
           <div className={`p-4 sm:p-5 rounded-2xl border space-y-3 shadow-lg ${
             isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'

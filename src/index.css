@@ -86,3 +86,391 @@ input[type="range"] {
   }
 }
 
+/* ============================================================================
+   TABLET & MEDIUM-SCREEN RESPONSIVE MEDIA QUERIES (768px - 1279px)
+   Ensures balanced multi-column distribution, full feature visibility,
+   touch-friendly controls, and proportional 2D/3D viewports on all tablets.
+   ============================================================================ */
+
+/* Shared Tablet Rules: Portrait & Landscape (768px - 1279px) */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .tablet-main-shell {
+    padding: 1.25rem 1.25rem;
+  }
+
+  /* Restore hidden desktop-only action labels on medium tablet screens */
+  .tablet-nav-label {
+    display: inline;
+    font-size: 0.72rem;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .tablet-header-utilities button {
+    min-height: 38px;
+    padding: 0.42rem 0.65rem;
+  }
+
+  .tablet-toolbar-wrap {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .tablet-toolbar-wrap button {
+    min-height: 36px;
+  }
+
+  .tablet-stage-canvas {
+    height: 410px;
+  }
+
+  .tablet-sticky-switcher {
+    top: calc(var(--app-header-height, 138px) + 8px);
+  }
+
+  .tablet-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.125rem;
+  }
+
+  .tablet-law-card {
+    min-height: 315px;
+  }
+
+  .tablet-modal-shell {
+    max-height: 90dvh;
+    width: min(94vw, 960px);
+  }
+
+  .tablet-quick-guide {
+    width: min(410px, calc(100vw - 2rem));
+    max-height: 74dvh;
+  }
+}
+
+/* Portrait Tablet Media Query (768px - 1023px: iPad / Android Tablet Portrait) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Header: Brand + Domain Switcher on row 1; full labeled utilities strip on row 2 */
+  .tablet-header-upper {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    row-gap: 0.5rem;
+    column-gap: 0.75rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .tablet-header-brand {
+    width: auto;
+    flex: 0 1 auto;
+    order: 1;
+  }
+
+  .tablet-domain-switcher {
+    order: 2;
+    width: auto;
+    flex: 0 0 auto;
+  }
+
+  .tablet-header-utilities {
+    order: 3;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
+  }
+
+  /* Give 3D/2D main stage full tablet width on top, and distribute side/telemetry cards in 2 columns */
+  .tablet-lab-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .tablet-lab-stage-row {
+    order: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .tablet-lab-sidebar {
+    order: 2;
+    width: 100%;
+    max-width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .tablet-lab-telemetry {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .tablet-lab-sidebar > :only-child,
+  .tablet-lab-telemetry > :only-child,
+  .tablet-lab-sidebar > :last-child:nth-child(odd),
+  .tablet-lab-telemetry > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  /* 12-Col Physics & Chemistry Simulators: Full-width Stage + 2-Column Balanced Controls */
+  .tablet-sim-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+  }
+
+  .tablet-sim-stage {
+    grid-column: 1 / -1;
+    width: 100%;
+    order: 1;
+  }
+
+  .tablet-sim-controls {
+    grid-column: 1 / -1;
+    width: 100%;
+    order: 2;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .tablet-sim-controls > :only-child,
+  .tablet-sim-controls > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  /* Molecule Builder: Keep Draggable Elements Palette visible inline on portrait tablets */
+  .tablet-molecule-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+  }
+
+  .tablet-molecule-palette {
+    display: flex;
+    position: static;
+    width: 100%;
+    order: 1;
+  }
+
+  .tablet-element-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    max-height: 230px;
+    gap: 0.5rem;
+  }
+
+  .tablet-molecule-stage {
+    width: 100%;
+    order: 2;
+  }
+
+  .tablet-molecule-dossier {
+    width: 100%;
+    order: 3;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  .tablet-molecule-dossier > :only-child,
+  .tablet-molecule-dossier > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  /* 3D Physics Dock: Clean 2-column control grid on portrait tablet */
+  .tablet-3d-controls-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  /* Split-pane curriculum modals keep sidebar + detail visible side-by-side on portrait tablet */
+  .tablet-modal-split {
+    display: grid;
+    grid-template-columns: 250px minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .tablet-modal-split > :first-child {
+    border-bottom: 0;
+    border-inline-end: 1px solid rgba(148, 163, 184, 0.2);
+  }
+}
+
+/* Landscape Tablet & Compact Laptop Media Query (1024px - 1279px) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .tablet-header-upper {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    row-gap: 0.45rem;
+    column-gap: 0.75rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .tablet-header-brand {
+    width: auto;
+    order: 1;
+  }
+
+  .tablet-header-subtitle {
+    display: block;
+    font-size: 10.5px;
+  }
+
+  .tablet-domain-switcher {
+    order: 2;
+    width: auto;
+  }
+
+  .tablet-header-utilities {
+    order: 3;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.16);
+  }
+
+  /* Keep side-by-side layout with balanced sidebar width and 2-column telemetry below stage */
+  .tablet-lab-layout {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1.125rem;
+  }
+
+  .tablet-lab-sidebar {
+    order: 1;
+    width: 285px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .tablet-lab-stage-row {
+    order: 2;
+    flex: 1 1 0%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.125rem;
+  }
+
+  .tablet-lab-telemetry {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .tablet-lab-telemetry > :only-child,
+  .tablet-lab-telemetry > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  /* 12-Col Simulators: 7/5 split guarantees Stage always gets 7 cols & Controls get 5 cols */
+  .tablet-sim-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  .tablet-sim-stage {
+    grid-column: span 7 / span 7;
+    order: 1;
+    min-width: 0;
+  }
+
+  .tablet-sim-controls {
+    grid-column: span 5 / span 5;
+    order: 2;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* Molecule Builder: 5fr Palette + 7fr Stage side-by-side */
+  .tablet-molecule-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  .tablet-molecule-palette {
+    grid-column: span 1 / span 1;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: calc(var(--app-header-height, 118px) + 12px);
+  }
+
+  .tablet-molecule-stage {
+    grid-column: span 1 / span 1;
+    min-width: 0;
+  }
+
+  .tablet-molecule-dossier {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  .tablet-molecule-dossier > :only-child,
+  .tablet-molecule-dossier > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .tablet-element-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-height: 460px;
+    gap: 0.5rem;
+  }
+
+  /* 3D Physics Dock: Balanced 2x2 grid on landscape tablet */
+  .tablet-3d-controls-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+}
+
+/* Shorter Landscape Tablet Viewports (e.g. 1024x768 / 1180x740): Keep 3D stage + controls visible */
+@media (min-width: 768px) and (max-width: 1279px) and (max-height: 780px) {
+  .tablet-stage-canvas {
+    height: 360px;
+  }
+}
+
+

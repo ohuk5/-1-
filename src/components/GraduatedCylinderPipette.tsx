@@ -133,9 +133,9 @@ export const GraduatedCylinderPipette: React.FC<GraduatedCylinderPipetteProps> =
       </div>
 
       {/* Main Grid: Glassware Stage vs Controls */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 tablet-sim-grid">
         {/* Glassware Visual Stage (7 cols) */}
-        <div className={`lg:col-span-7 rounded-xl border p-5 flex flex-col items-center justify-between min-h-[460px] relative overflow-hidden ${
+        <div className={`lg:col-span-7 rounded-xl border p-5 flex flex-col items-center justify-between min-h-[460px] relative overflow-hidden tablet-sim-stage ${
           isDark ? 'bg-slate-950/80 border-slate-800/80' : 'bg-slate-50 border-slate-200'
         }`}>
           {/* Tile Grid */}
@@ -290,7 +290,7 @@ export const GraduatedCylinderPipette: React.FC<GraduatedCylinderPipetteProps> =
         </div>
 
         {/* Right Controls Column: Reagent Bottles & Pouring Deck (5 cols) */}
-        <div className="lg:col-span-5 flex flex-col gap-4">
+        <div className="lg:col-span-5 flex flex-col gap-4 tablet-sim-controls">
           {/* Reagent Bottle Select */}
           <div className={`rounded-xl border p-4 space-y-3 ${
             isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'

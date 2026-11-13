@@ -1541,9 +1541,9 @@ export const StatesOfMatter: React.FC<StatesOfMatterProps> = ({ onOpenGuide }) =
         )}
       </div>
 
-      <div className="w-full flex flex-col md:flex-row gap-5 items-start overflow-x-hidden">
+      <div className="w-full flex flex-col md:flex-row gap-5 items-start overflow-x-hidden tablet-lab-layout">
         {/* Left Column: Substance Selection & Physics Controls */}
-        <div className="w-full md:w-[300px] lg:w-[330px] xl:w-[340px] shrink-0 min-w-0 flex flex-col gap-4 order-2 md:order-1">
+        <div className="w-full md:w-[300px] lg:w-[330px] xl:w-[340px] shrink-0 min-w-0 flex flex-col gap-4 order-2 md:order-1 tablet-lab-sidebar">
           {/* Substance Selector Card (Expanded to 12 substances including Gold & Bromine!) */}
           <div className={`p-4 sm:p-5 rounded-2xl border space-y-3 shadow-lg ${
             isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'
@@ -1735,7 +1735,7 @@ export const StatesOfMatter: React.FC<StatesOfMatterProps> = ({ onOpenGuide }) =
         </div>
 
         {/* Main Simulation Stage & Thermal Controls */}
-        <div className="w-full flex-1 min-w-0 flex flex-col xl:flex-row gap-5 order-1 md:order-2">
+        <div className="w-full flex-1 min-w-0 flex flex-col xl:flex-row gap-5 order-1 md:order-2 tablet-lab-stage-row">
           {/* Middle Column: Physical Simulation Vessel & Correct Phase Gauge */}
           <div className="w-full xl:flex-1 min-w-0 flex flex-col items-center gap-4">
           <div className={`w-full min-w-0 p-4 rounded-2xl border shadow-lg flex flex-col items-center ${
@@ -2205,7 +2205,7 @@ export const StatesOfMatter: React.FC<StatesOfMatterProps> = ({ onOpenGuide }) =
         </div>
 
           {/* Right Column: Thermal & Pressure Controls + Gauges */}
-          <div className="w-full xl:w-[310px] shrink-0 min-w-0 flex flex-col gap-4">
+          <div className="w-full xl:w-[310px] shrink-0 min-w-0 flex flex-col gap-4 tablet-lab-telemetry">
           {/* Direct Temperature Input & Thermal Controls Card */}
           <div className={`p-4 sm:p-5 rounded-2xl border space-y-4 shadow-lg ${
             isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'

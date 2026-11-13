@@ -57,6 +57,24 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
   const isAr = lang === 'ar';
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const headerRef = React.useRef<HTMLElement | null>(null);
+
+  // Sync actual header height to CSS variable for pixel-accurate sticky toolbars across mobile/tablet/desktop
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const updateHeight = () => {
+      document.documentElement.style.setProperty('--app-header-height', `${Math.ceil(el.getBoundingClientRect().height)}px`);
+    };
+    updateHeight();
+    const ro = new ResizeObserver(updateHeight);
+    ro.observe(el);
+    window.addEventListener('resize', updateHeight);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, [currentDomain, activeTab]);
 
   // Global Keyboard Navigation Shortcuts
   useEffect(() => {
@@ -207,6 +225,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
 
   return (
     <header
+      ref={headerRef}
       className={`sticky top-0 z-40 w-full backdrop-blur-md border-b transition-colors ${
         isDark ? 'bg-slate-950/95 border-slate-800/90 shadow-md' : 'bg-white/95 border-slate-200/90 shadow-sm'
       }`}
@@ -220,9 +239,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
       />
 
       {/* Upper Deck: Brand Wordmark, Dual Domain Switcher, and Global Utilities */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex flex-col lg:flex-row items-center justify-between gap-2 sm:gap-3">
-        {/* Brand Wordmark & Compact Mobile/Tablet Toolbar */}
-        <div className="flex items-center justify-between w-full lg:w-auto gap-2 shrink-0">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex flex-col lg:flex-row items-center justify-between gap-2 sm:gap-3 tablet-header-upper">
+        {/* Brand Wordmark & Compact Mobile Toolbar */}
+        <div className="flex items-center justify-between w-full md:w-auto gap-2 shrink-0 tablet-header-brand">
           <div className="flex items-center gap-2.5 min-w-0">
             <div
               className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-white shadow-md shrink-0 transition-all ${
@@ -260,7 +279,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
                   {currentDomain === 'chemistry' ? t('كيمياء 3', 'Chemistry 3') : t('فيزياء حركية', 'Kinetic Physics')}
                 </span>
               </div>
-              <p className={`text-[11px] hidden xl:block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <p className={`text-[11px] hidden xl:block tablet-header-subtitle ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 {currentDomain === 'chemistry'
                   ? t('منهاج كيمياء 3 (المسارات) والتجارب المعتمدة', 'Saudi Chemistry 3 Curriculum & Experiments')
                   : t('محاكاة ديناميكا الموائع والغازات والكهرباء والكم', 'Fluids, Gas Kinetics, Coulomb & Quantum Sims')}
@@ -268,8 +287,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
             </div>
           </div>
 
-          {/* Responsive Tablet & Mobile Action Strip (< 1024px) */}
-          <div className="flex items-center gap-1.5 lg:hidden shrink-0">
+          {/* Responsive Mobile Action Strip (< 768px; tablets >= 768px show full utility bar) */}
+          <div className="flex items-center gap-1.5 md:hidden shrink-0">
             {/* Search Button */}
             <button
               type="button"
@@ -337,7 +356,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
         </div>
 
         {/* Center: The Dual Domain Switcher (Chemistry vs Physics) */}
-        <div className="w-full lg:w-auto flex items-center justify-center order-3 lg:order-2">
+        <div className="w-full md:w-auto flex items-center justify-center order-3 lg:order-2 tablet-domain-switcher">
           <div
             role="tablist"
             aria-label="Scientific Domain Selector"
@@ -411,9 +430,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
           </div>
         </div>
 
-        {/* Desktop Utility Actions (>= 1024px) */}
-        <div className="hidden lg:flex items-center gap-1.5 shrink-0 order-3">
-          {/* Desktop Search Trigger */}
+        {/* Tablet & Desktop Utility Actions (>= 768px) */}
+        <div className="hidden md:flex items-center gap-1.5 shrink-0 order-3 tablet-header-utilities">
+          {/* Search Trigger */}
           <button
             type="button"
             onClick={() => setIsSearchOpen(true)}
@@ -424,8 +443,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
             }`}
             title={t('البحث العلمي الذكي (Ctrl+K)', 'Scientific Search (Ctrl+K)')}
           >
-            <Search className="w-4 h-4" />
-            <span className="hidden xl:inline">{t('البحث العلمي', 'Search')}</span>
+            <Search className="w-4 h-4 shrink-0" />
+            <span className="hidden xl:inline tablet-nav-label">{t('البحث العلمي', 'Search')}</span>
           </button>
 
           {/* Sound FX Toggle */}
@@ -443,7 +462,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
             }`}
             title={soundEnabled ? t('كتم المؤثرات الصوتية (M)', 'Mute Sound Effects (M)') : t('تشغيل المؤثرات الصوتية (M)', 'Enable Sound Effects (M)')}
           >
-            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            {soundEnabled ? <Volume2 className="w-4 h-4 shrink-0" /> : <VolumeX className="w-4 h-4 shrink-0" />}
           </button>
 
           {/* Theme Switcher */}
@@ -457,7 +476,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
             }`}
             title={t('تبديل المظهر الداكن/الفاتح (T)', 'Toggle Dark/Light Theme (T)')}
           >
-            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {isDark ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
           </button>
 
           {/* Language Switcher */}
@@ -471,7 +490,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
             }`}
             title={t('تبديل اللغة (L)', 'Switch Language (L)')}
           >
-            <Globe2 className="w-4 h-4 text-cyan-500" />
+            <Globe2 className="w-4 h-4 text-cyan-500 shrink-0" />
             <span>{lang === 'ar' ? 'EN' : 'عربي'}</span>
           </button>
 
@@ -486,8 +505,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
             }`}
             title={t('طرح الأسئلة على المساعد العلمي الذكي (Q)', 'Ask AI Science Assistant (Q)')}
           >
-            <Bot className="w-4 h-4 text-purple-400" />
-            <span className="hidden xl:inline">{t('طرح الأسئلة', 'Ask AI')}</span>
+            <Bot className="w-4 h-4 text-purple-400 shrink-0" />
+            <span className="hidden xl:inline tablet-nav-label">{t('طرح الأسئلة', 'Ask AI')}</span>
           </button>
 
           {/* Unified Calculator Launcher */}
@@ -501,8 +520,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
             }`}
             title={t('حاسبة القوانين الشاملة (كيمياء وفيزياء)', 'Comprehensive Laws Calculator')}
           >
-            <Calculator className="w-4 h-4" />
-            <span className="hidden xl:inline">
+            <Calculator className="w-4 h-4 shrink-0" />
+            <span className="hidden xl:inline tablet-nav-label">
               {currentDomain === 'physics' ? t('حاسبة الفيزياء', 'Physics Calc') : t('حاسبة الكيمياء', 'Chem Calc')}
             </span>
           </button>
@@ -515,8 +534,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all shadow-md"
               title={t('مرجع كتاب كيمياء 3 والمصطلحات', 'Chemistry 3 Textbook Reference')}
             >
-              <BookOpen className="w-4 h-4" />
-              <span className="hidden xl:inline">{t('كتاب كيمياء 3', 'Chem 3 Book')}</span>
+              <BookOpen className="w-4 h-4 shrink-0" />
+              <span className="hidden xl:inline tablet-nav-label">{t('كتاب كيمياء 3', 'Chem 3 Book')}</span>
             </button>
           ) : (
             <button
@@ -525,17 +544,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md"
               title={t('دليل وموسوعة فيزياء 3-1 وتجارب المختبر', 'Physics 3-1 Textbook & Experiments Guide')}
             >
-              <BookOpen className="w-4 h-4 text-amber-300" />
-              <span className="hidden xl:inline">{t('دليل فيزياء 3-1', 'Physics 3-1')}</span>
+              <BookOpen className="w-4 h-4 text-amber-300 shrink-0" />
+              <span className="hidden xl:inline tablet-nav-label">{t('دليل فيزياء 3-1', 'Physics 3-1')}</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Expandable Compact Tools Drawer for Tablet & Mobile (< 1024px) */}
+      {/* Expandable Compact Tools Drawer for Mobile (< 768px) */}
       {isMobileMenuOpen && (
         <div
-          className={`lg:hidden border-t px-3 sm:px-6 py-3 animate-fadeIn ${
+          className={`md:hidden border-t px-3 sm:px-6 py-3 animate-fadeIn ${
             isDark ? 'bg-slate-900/98 border-slate-800' : 'bg-slate-50 border-slate-200'
           }`}
         >
@@ -725,8 +744,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
             </ScrollableRibbon>
           </div>
 
-          {/* Side Helper Guide Trigger (Desktop) */}
-          <div className="hidden lg:flex items-center gap-2 shrink-0">
+          {/* Side Helper Guide Trigger (Tablet & Desktop) */}
+          <div className="hidden md:flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={onOpenGuide}
@@ -737,8 +756,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
               }`}
               title={t('دليل الاستخدام السريع المفصل', 'Detailed Quick Guide')}
             >
-              <HelpCircle className="w-4 h-4" />
-              <span className="hidden xl:inline">{t('دليل الاستخدام', 'Quick Guide')}</span>
+              <HelpCircle className="w-4 h-4 shrink-0" />
+              <span className="hidden xl:inline tablet-nav-label">{t('دليل الاستخدام', 'Quick Guide')}</span>
             </button>
           </div>
         </div>

@@ -442,9 +442,9 @@ export const GasThermodynamicsSim: React.FC<GasThermodynamicsSimProps> = ({ forc
 
       {/* MODE 1: GAS LAWS & THERMODYNAMICS */}
       {subMode === 'gas' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start tablet-sim-grid">
           {/* Main Simulation Viewport (Col 1-8) */}
-          <div className={`lg:col-span-8 min-w-0 rounded-3xl border p-4 sm:p-6 flex flex-col gap-4 shadow-sm ${
+          <div className={`lg:col-span-8 min-w-0 rounded-3xl border p-4 sm:p-6 flex flex-col gap-4 shadow-sm tablet-sim-stage ${
             isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
           }`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -584,7 +584,7 @@ export const GasThermodynamicsSim: React.FC<GasThermodynamicsSimProps> = ({ forc
           </div>
 
           {/* Control Deck (Col 9-12) */}
-          <div className="lg:col-span-4 min-w-0 flex flex-col gap-4">
+          <div className="lg:col-span-4 min-w-0 flex flex-col gap-4 tablet-sim-controls">
             {/* Temperature Control */}
             <div className={`p-5 rounded-3xl border flex flex-col gap-3 shadow-sm ${
               isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
@@ -769,9 +769,9 @@ export const GasThermodynamicsSim: React.FC<GasThermodynamicsSimProps> = ({ forc
 
       {/* MODE 2: FLUID MECHANICS & BUOYANCY (قاعدة أرخميدس) */}
       {subMode === 'buoyancy' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start tablet-sim-grid">
           {/* Main Buoyancy Simulation Tank (Col 1-8) */}
-          <div className={`lg:col-span-8 min-w-0 rounded-3xl border p-4 sm:p-6 flex flex-col gap-4 shadow-sm ${
+          <div className={`lg:col-span-8 min-w-0 rounded-3xl border p-4 sm:p-6 flex flex-col gap-4 shadow-sm tablet-sim-stage ${
             isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
           }`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -877,7 +877,7 @@ export const GasThermodynamicsSim: React.FC<GasThermodynamicsSimProps> = ({ forc
           </div>
 
           {/* Buoyancy Control Deck (Col 9-12) */}
-          <div className="lg:col-span-4 min-w-0 flex flex-col gap-4">
+          <div className="lg:col-span-4 min-w-0 flex flex-col gap-4 tablet-sim-controls">
             {/* Select Fluid Type */}
             <div className={`p-5 rounded-3xl border flex flex-col gap-3 shadow-sm ${
               isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'

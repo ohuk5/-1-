@@ -989,7 +989,7 @@ export const CurriculumExperimentsModal: React.FC<CurriculumExperimentsModalProp
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-fadeIn">
       <div 
-        className={`w-full max-w-6xl max-h-[92vh] rounded-3xl border shadow-2xl flex flex-col overflow-hidden transition-all ${
+        className={`w-full max-w-6xl max-h-[92vh] rounded-3xl border shadow-2xl flex flex-col overflow-hidden transition-all tablet-modal-shell ${
           isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-300 text-slate-800'
         }`}
       >
@@ -1037,7 +1037,7 @@ export const CurriculumExperimentsModal: React.FC<CurriculumExperimentsModalProp
         </div>
 
         {/* Modal Main Content: Split List & Detail View */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
+        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 tablet-modal-split">
           {/* Left / Navigation List (Col 1-4) */}
           <div className={`lg:col-span-4 border-b lg:border-b-0 lg:border-r border-slate-800 flex flex-col h-full overflow-hidden ${
             isDark ? 'bg-slate-950/40' : 'bg-slate-50/70'

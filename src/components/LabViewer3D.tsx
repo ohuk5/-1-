@@ -2839,7 +2839,7 @@ export const LabViewer3D: React.FC<LabViewer3DProps> = ({
           </div>
         }
         toolbar={
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
               onClick={() => handleZoom(-4)}

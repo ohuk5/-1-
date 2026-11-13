@@ -743,9 +743,9 @@ ${t('الانتقال الإلكتروني', 'Electron Transition')}: ${selected
       </div>
 
       {/* 3. Main Optical Bench Canvas + Real-Time Controls */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start tablet-sim-grid">
         {/* Left: Apparatus Live Canvas (8 Cols) */}
-        <div className="lg:col-span-8 space-y-3 min-w-0">
+        <div className="lg:col-span-8 space-y-3 min-w-0 tablet-sim-stage">
           <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 shadow-inner">
             <canvas
               ref={canvasRef}
@@ -850,7 +850,7 @@ ${t('الانتقال الإلكتروني', 'Electron Transition')}: ${selected
         </div>
 
         {/* Right: Instrumentation Controls & Real-Time Physics Gauge (4 Cols) */}
-        <div className="lg:col-span-4 space-y-4 min-w-0">
+        <div className="lg:col-span-4 space-y-4 min-w-0 tablet-sim-controls">
           {/* Power & High Voltage Controls */}
           <div className={`p-4 rounded-xl border space-y-3 ${
             isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'

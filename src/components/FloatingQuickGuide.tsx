@@ -544,7 +544,7 @@ export const FloatingQuickGuide: React.FC = () => {
           }
           className={`${
             !position ? 'fixed bottom-20 left-6 z-50' : ''
-          } w-[92vw] sm:w-[440px] rounded-3xl border shadow-2xl backdrop-blur-2xl flex flex-col overflow-hidden transition-shadow select-none ${
+          } w-[92vw] sm:w-[440px] tablet-quick-guide rounded-3xl border shadow-2xl backdrop-blur-2xl flex flex-col overflow-hidden transition-shadow select-none ${
             isDark
               ? 'bg-slate-900/95 border-cyan-500/40 text-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.8)]'
               : 'bg-white/95 border-cyan-500/50 text-slate-900 shadow-[0_20px_60px_rgba(0,0,0,0.2)]'

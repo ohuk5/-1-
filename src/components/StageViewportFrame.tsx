@@ -55,26 +55,31 @@ export const StageViewportFrame: React.FC<StageViewportFrameProps> = ({
     >
       {/* External Top Header & Toolbar (Outside WebGL Canvas - Zero Overlap) */}
       <div
-        className={`px-3.5 py-2.5 border-b flex flex-wrap items-center justify-between gap-2.5 shrink-0 ${
+        className={`px-3.5 py-2.5 border-b flex flex-col gap-2 shrink-0 ${
           isDark
             ? 'bg-slate-900 border-slate-800 text-slate-100'
             : 'bg-slate-50 border-slate-200 text-slate-900'
         }`}
       >
-        <div className="min-w-0 flex-1 flex flex-col gap-0.5">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="w-full flex flex-wrap items-center justify-between gap-2 tablet-toolbar-wrap">
+          <div className="min-w-[140px] flex-1 flex items-center gap-2 flex-wrap">
             {title}
           </div>
-          {subtitle && (
-            <div className={`text-xs flex items-center gap-1.5 flex-wrap ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {subtitle}
+
+          {toolbar && (
+            <div className="flex items-center gap-1 flex-wrap max-w-full tablet-toolbar-wrap">
+              {toolbar}
             </div>
           )}
         </div>
 
-        {toolbar && (
-          <div className="flex items-center gap-1 flex-wrap shrink-0">
-            {toolbar}
+        {subtitle && (
+          <div
+            className={`w-full pt-1.5 border-t text-xs flex items-center gap-1.5 flex-wrap ${
+              isDark ? 'border-slate-800/80 text-slate-400' : 'border-slate-200/80 text-slate-600'
+            }`}
+          >
+            {subtitle}
           </div>
         )}
       </div>
@@ -82,7 +87,7 @@ export const StageViewportFrame: React.FC<StageViewportFrameProps> = ({
       {/* Pure Unobstructed 3D WebGL Viewport */}
       <div
         className={`relative w-full overflow-hidden bg-slate-950 ${
-          isFullscreen ? 'flex-1 min-h-0' : canvasHeightClass
+          isFullscreen ? 'flex-1 min-h-0' : `${canvasHeightClass} tablet-stage-canvas`
         }`}
       >
         {children}

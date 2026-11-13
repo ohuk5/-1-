@@ -1153,7 +1153,7 @@ export const StatesOfMatter3D: React.FC<StatesOfMatter3DProps> = ({
           </span>
         }
         toolbar={
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
               onClick={() => handleZoom(-5)}

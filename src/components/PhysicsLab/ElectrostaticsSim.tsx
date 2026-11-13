@@ -397,9 +397,9 @@ export const ElectrostaticsSim: React.FC = () => {
 
   return (
     <div className="w-full flex flex-col gap-6">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start tablet-sim-grid">
         {/* Main Canvas Visualizer (Col 1-8) */}
-        <div className={`lg:col-span-8 min-w-0 rounded-3xl border p-4 sm:p-6 flex flex-col gap-4 shadow-sm ${
+        <div className={`lg:col-span-8 min-w-0 rounded-3xl border p-4 sm:p-6 flex flex-col gap-4 shadow-sm tablet-sim-stage ${
           isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -568,7 +568,7 @@ export const ElectrostaticsSim: React.FC = () => {
         </div>
 
         {/* Electrostatics Control Deck (Col 9-12) */}
-        <div className="lg:col-span-4 min-w-0 flex flex-col gap-4">
+        <div className="lg:col-span-4 min-w-0 flex flex-col gap-4 tablet-sim-controls">
           {/* Add Charges Deck */}
           <div className={`p-5 rounded-3xl border flex flex-col gap-3 shadow-sm ${
             isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'

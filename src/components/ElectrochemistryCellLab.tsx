@@ -576,9 +576,9 @@ export const ElectrochemistryCellLab: React.FC<ElectrochemistryCellLabProps> = (
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start tablet-sim-grid">
         {/* Controls Column (5 cols) */}
-        <div className="lg:col-span-5 space-y-4">
+        <div className="lg:col-span-5 space-y-4 tablet-sim-controls">
           {cellMode === 'galvanic' ? (
             <>
               <div className={`p-4 rounded-xl border space-y-3 ${isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
@@ -779,7 +779,7 @@ export const ElectrochemistryCellLab: React.FC<ElectrochemistryCellLabProps> = (
         </div>
 
         {/* 2D / 3D Visualization Viewport (7 cols) */}
-        <div className="lg:col-span-7">
+        <div className="lg:col-span-7 tablet-sim-stage">
           {viewMode === '3d' ? (
             <StageViewportFrame
               canvasHeightClass="h-[380px] sm:h-[420px]"

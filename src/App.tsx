@@ -81,7 +81,7 @@ function MainAppContent() {
       <Header onOpenGuide={() => handleOpenGuide()} />
 
       {/* Main Simulator & Lab Stage Responsive Container */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-3 py-5 sm:px-6 sm:py-8 lg:px-8 lg:py-10 overflow-x-clip">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-3 py-5 sm:px-6 sm:py-8 lg:px-8 lg:py-10 tablet-main-shell overflow-x-clip">
         <div className="w-full flex flex-col md:flex-row gap-6 sm:gap-8 overflow-x-clip">
           <div className="w-full flex-1 min-w-0 max-w-full overflow-x-clip">
             {/* Domain 1: Chemistry Lab (Strictly 5 Modules) */}
