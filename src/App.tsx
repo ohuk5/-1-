@@ -72,7 +72,7 @@ function MainAppContent() {
   const isDark = theme === 'dark';
 
   return (
-    <div className={`min-h-screen flex flex-col justify-between transition-colors duration-200 overflow-x-hidden w-full ${
+    <div className={`min-h-screen flex flex-col justify-between transition-colors duration-200 overflow-x-clip w-full ${
       isDark
         ? 'bg-slate-950 text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200'
         : 'bg-slate-50 text-slate-900 selection:bg-cyan-600/20 selection:text-cyan-800'
@@ -81,9 +81,9 @@ function MainAppContent() {
       <Header onOpenGuide={() => handleOpenGuide()} />
 
       {/* Main Simulator & Lab Stage Responsive Container */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10 overflow-x-hidden">
-        <div className="w-full flex flex-col md:flex-row gap-6 sm:gap-8 overflow-x-hidden">
-          <div className="w-full flex-1 min-w-0 max-w-full overflow-y-auto overflow-x-hidden">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-3 py-5 sm:px-6 sm:py-8 lg:px-8 lg:py-10 overflow-x-clip">
+        <div className="w-full flex flex-col md:flex-row gap-6 sm:gap-8 overflow-x-clip">
+          <div className="w-full flex-1 min-w-0 max-w-full overflow-x-clip">
             {/* Domain 1: Chemistry Lab (Strictly 5 Modules) */}
             {currentDomain === 'chemistry' && (
               <>

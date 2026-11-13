@@ -34,6 +34,7 @@ import {
 } from '../data/substancesData';
 import { useApp } from '../context/AppContext';
 import { StatesOfMatter3D } from './StatesOfMatter3D';
+import { ChemistryKineticsEqLab, Chemistry3SubTab } from './ChemistryKineticsEqLab';
 import { playLabSound } from '../utils/soundEffects';
 import { ScrollableRibbon } from './ScrollableRibbon';
 
@@ -58,6 +59,7 @@ export const StatesOfMatter: React.FC<StatesOfMatterProps> = ({ onOpenGuide }) =
   const { lang, theme, t, activeLabPreset, clearLabExperiment, openCurriculum, openCalculator } = useApp();
   const isDark = theme === 'dark';
   const isAr = lang === 'ar';
+  const [curriculumSubTab, setCurriculumSubTab] = useState<'states' | Chemistry3SubTab>('states');
   const [substanceId, setSubstanceId] = useState<string>('water');
   const [targetTemp, setTargetTemp] = useState<number>(300); // 300K default
   const [actualTemp, setActualTemp] = useState<number>(300);
@@ -1338,6 +1340,52 @@ export const StatesOfMatter: React.FC<StatesOfMatterProps> = ({ onOpenGuide }) =
 
   return (
     <div className="space-y-6">
+      {/* Top Curriculum Module Switcher: States of Matter + Chemistry 3 Kinetics / Equilibrium / Stoichiometry */}
+      <div className={`p-2 rounded-2xl border flex flex-wrap items-center justify-between gap-2 shadow-sm ${
+        isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+      }`}>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {[
+            { id: 'states' as const, ar: 'حالات المادة والغازات (2D/3D)', en: 'States of Matter & Gases' },
+            { id: 'kinetics' as const, ar: 'سرعة التفاعل والتصادم', en: 'Reaction Kinetics' },
+            { id: 'equilibrium' as const, ar: 'الاتزان ومبدأ لوشاتيليه', en: 'Equilibrium & Le Chatelier' },
+            { id: 'stoichiometry' as const, ar: 'الحسابات والمادة المحددة', en: 'Stoichiometry & Limiting' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                playLabSound('click');
+                setCurriculumSubTab(tab.id);
+              }}
+              className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                curriculumSubTab === tab.id
+                  ? 'bg-cyan-600 text-white shadow-md'
+                  : isDark
+                  ? 'bg-slate-950/60 text-slate-300 hover:bg-slate-800 hover:text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {t(tab.ar, tab.en)}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => openCalculator(curriculumSubTab === 'kinetics' ? 'rate_law' : curriculumSubTab === 'equilibrium' ? 'equilibrium' : curriculumSubTab === 'stoichiometry' ? 'stoichiometry' : 'gas')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
+            isDark ? 'bg-amber-950/40 border-amber-600/40 text-amber-300 hover:bg-amber-900/50' : 'bg-amber-50 border-amber-300 text-amber-800'
+          }`}
+        >
+          <Gauge className="w-3.5 h-3.5" />
+          <span>{t('حاسبة القوانين السريعة', 'Quick Law Calc')}</span>
+        </button>
+      </div>
+
+      {curriculumSubTab !== 'states' ? (
+        <ChemistryKineticsEqLab mode={curriculumSubTab} />
+      ) : (
+        <div className="space-y-6">
       {/* Live Phase Transition Alert Banner */}
       {transitionNotification && (
         <div className="bg-gradient-to-l from-cyan-950 via-slate-900 to-slate-950 border-2 border-cyan-500 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300">
@@ -1777,7 +1825,7 @@ export const StatesOfMatter: React.FC<StatesOfMatterProps> = ({ onOpenGuide }) =
             {/* Viewport Rendering Area (3D or 2D) */}
             <div className="w-full flex flex-col items-center justify-center animate-fadeIn">
               {viewMode === '3d' ? (
-                <div className="w-full aspect-[4/3] max-w-[460px] rounded-xl overflow-hidden shadow-inner border border-slate-800 bg-slate-950">
+                <div className="w-full max-w-[460px]">
                   <StatesOfMatter3D
                     key={`som-3d-${substance.id}`}
                     substance={substance}
@@ -1789,6 +1837,7 @@ export const StatesOfMatter: React.FC<StatesOfMatterProps> = ({ onOpenGuide }) =
                     phaseName={phaseInfo.phaseName}
                     particleCount={particleCount}
                     burnerActive={burnerActive}
+                    magneticFieldActive={magneticDeflectorActive}
                   />
                 </div>
               ) : (
@@ -2634,6 +2683,8 @@ export const StatesOfMatter: React.FC<StatesOfMatterProps> = ({ onOpenGuide }) =
         </div>
         </div>
       </div>
+        </div>
+      )}
     </div>
   );
 };

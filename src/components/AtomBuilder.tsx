@@ -16,6 +16,7 @@ import {
   Flame,
   Radiation,
   Atom,
+  Calculator,
   X
 } from 'lucide-react';
 import { ALL_ELEMENTS, ELEMENT_MAP, ElementInfo, CATEGORY_COLORS } from '../data/elementsData';
@@ -40,7 +41,7 @@ interface AtomBuilderProps {
 }
 
 export const AtomBuilder: React.FC<AtomBuilderProps> = ({ onOpenGuide }) => {
-  const { lang, theme, t, activeLabPreset, clearLabExperiment, launchLabExperiment, openCurriculum } = useApp();
+  const { lang, theme, t, activeLabPreset, clearLabExperiment, launchLabExperiment, openCurriculum, openCalculator } = useApp();
   const isDark = theme === 'dark';
   const [protons, setProtons] = useState<number>(1);
   const [neutrons, setNeutrons] = useState<number>(0);
@@ -51,6 +52,9 @@ export const AtomBuilder: React.FC<AtomBuilderProps> = ({ onOpenGuide }) => {
   const [orbitSpeed, setOrbitSpeed] = useState<number>(1.0); // 0 (pause), 0.3 (slow motion), 1.0 (normal), 1.6 (fast)
   const [dimensionMode, setDimensionMode] = useState<'3d' | '2d'>('2d');
   const [isMobileControlsOpen, setIsMobileControlsOpen] = useState<boolean>(false);
+  const [sampleMassG, setSampleMassG] = useState<number>(12.0);
+  const [bohrNInitial, setBohrNInitial] = useState<number>(3);
+  const [bohrNFinal, setBohrNFinal] = useState<number>(2);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const nucleusNodesRef = useRef<NucleusNode[]>([]);
@@ -1402,17 +1406,17 @@ export const AtomBuilder: React.FC<AtomBuilderProps> = ({ onOpenGuide }) => {
               </div>
             </div>
 
-            {/* Electron Configuration */}
-            <div className={`p-3 rounded-xl border space-y-1.5 ${
+            {/* Electron Configuration + 2D Aufbau/Hund Orbital Box Diagram */}
+            <div className={`p-3 rounded-xl border space-y-2 ${
               isDark ? 'bg-slate-950/60 border-slate-800/80' : 'bg-slate-50 border-slate-200'
             }`}>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400 font-semibold">{t('التوزيع الإلكتروني:', 'Electron Config:')}</span>
+                <span className="text-slate-400 font-semibold">{t('التوزيع الإلكتروني ومخطط هوند:', 'Electron Config & Hund Diagram:')}</span>
                 <span className="font-mono text-cyan-400 text-xs font-semibold">
                   {currentElement.electronConfig}
                 </span>
               </div>
-              <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400 overflow-x-auto pt-1">
+              <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400 overflow-x-auto pt-0.5">
                 {['K', 'L', 'M', 'N', 'O', 'P', 'Q'].map((name, i) => {
                   const count = currentElement.electronShells ? currentElement.electronShells[i] || 0 : 0;
                   if (count === 0 && i >= (currentElement.electronShells?.length || 0)) return null;
@@ -1424,6 +1428,123 @@ export const AtomBuilder: React.FC<AtomBuilderProps> = ({ onOpenGuide }) => {
                     </span>
                   );
                 })}
+              </div>
+
+              {/* 2D Aufbau / Hund Orbital Boxes */}
+              {electrons > 0 && (() => {
+                const subshells = [
+                  { name: '1s', boxes: 1 },
+                  { name: '2s', boxes: 1 },
+                  { name: '2p', boxes: 3 },
+                  { name: '3s', boxes: 1 },
+                  { name: '3p', boxes: 3 },
+                  { name: '4s', boxes: 1 },
+                  { name: '3d', boxes: 5 },
+                  { name: '4p', boxes: 3 }
+                ];
+                let rem = electrons;
+                const filled = subshells.map(sub => {
+                  const take = Math.min(rem, sub.boxes * 2);
+                  rem -= take;
+                  if (take === 0) return null;
+                  const boxArr = Array.from({ length: sub.boxes }, (_, bIdx) => {
+                    const hasUp = take > bIdx;
+                    const hasDown = take > sub.boxes + bIdx;
+                    return { hasUp, hasDown };
+                  });
+                  return { name: sub.name, take, boxArr };
+                }).filter(Boolean) as Array<{ name: string; take: number; boxArr: Array<{ hasUp: boolean; hasDown: boolean }> }>;
+
+                return (
+                  <div className="flex flex-wrap gap-2 pt-1.5 border-t border-slate-800/60" dir="ltr">
+                    {filled.map(sub => (
+                      <div key={sub.name} className="flex flex-col items-center gap-0.5">
+                        <div className="flex items-center gap-0.5">
+                          {sub.boxArr.map((b, bi) => (
+                            <div
+                              key={bi}
+                              className={`w-5 h-5 rounded border text-[10px] font-mono font-black flex items-center justify-center ${
+                                isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'
+                              }`}
+                            >
+                              <span className="text-sky-400">{b.hasUp ? '↑' : ''}</span>
+                              <span className="text-orange-400">{b.hasDown ? '↓' : ''}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <span className="text-[9px] font-mono text-slate-400">{sub.name}<sup>{sub.take}</sup></span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Instant Molar Mass & Bohr Quantum Transition Calculator */}
+            <div className={`p-3 rounded-xl border space-y-2.5 text-xs ${
+              isDark ? 'bg-slate-950/60 border-cyan-900/40' : 'bg-cyan-50/40 border-cyan-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-cyan-400 flex items-center gap-1.5">
+                  <Calculator className="w-3.5 h-3.5" />
+                  <span>{t('حاسبة المولات والانتقال الكمي الفورية', 'Instant Mole & Quantum Calculator')}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => openCalculator('stoichiometry')}
+                  className="text-[10px] text-cyan-300 hover:underline font-bold"
+                >
+                  {t('الحاسبة الشاملة', 'Full Calc')}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-400 block mb-0.5">{t('كتلة العينة (g):', 'Sample Mass (g):')}</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={sampleMassG}
+                    onChange={e => setSampleMassG(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className={`w-full px-2 py-1 rounded-lg border text-xs font-mono font-bold ${
+                      isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+                <div className={`p-1.5 rounded-lg border flex flex-col justify-center ${
+                  isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'
+                }`}>
+                  <span className="text-[10px] text-slate-400">{t('عدد المولات n = m/M:', 'Moles n = m/M:')}</span>
+                  <span className="font-mono font-black text-emerald-400 tabular-nums">
+                    {(sampleMassG / Math.max(1, currentElement.atomicMass || massNumber || 1)).toFixed(3)} mol
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 items-center pt-1 border-t border-slate-800/50">
+                <div>
+                  <label className="text-[10px] text-slate-400 block">n₁ → n₂</label>
+                  <div className="flex items-center gap-1">
+                    <input type="number" min="1" max="7" value={bohrNInitial} onChange={e => setBohrNInitial(Math.max(1, Math.min(7, parseInt(e.target.value, 10) || 1)))} className={`w-10 px-1 py-0.5 rounded border text-xs font-mono text-center ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                    <span className="text-slate-500">→</span>
+                    <input type="number" min="1" max="7" value={bohrNFinal} onChange={e => setBohrNFinal(Math.max(1, Math.min(7, parseInt(e.target.value, 10) || 1)))} className={`w-10 px-1 py-0.5 rounded border text-xs font-mono text-center ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                </div>
+                {(() => {
+                  const deltaE = Math.abs(13.6 * (1 / (bohrNFinal * bohrNFinal) - 1 / (bohrNInitial * bohrNInitial)));
+                  const lambdaNm = deltaE > 0.001 ? 1239.84 / deltaE : 0;
+                  return (
+                    <>
+                      <div className={`p-1.5 rounded-lg border ${isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <span className="text-[9px] text-slate-400 block">ΔE (Bohr)</span>
+                        <span className="font-mono font-bold text-amber-400 tabular-nums">{deltaE.toFixed(2)} eV</span>
+                      </div>
+                      <div className={`p-1.5 rounded-lg border ${isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <span className="text-[9px] text-slate-400 block">λ الفوتون</span>
+                        <span className="font-mono font-bold text-cyan-400 tabular-nums">{lambdaNm > 0 ? `${lambdaNm.toFixed(0)} nm` : '—'}</span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
 

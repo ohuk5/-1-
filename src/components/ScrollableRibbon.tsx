@@ -28,6 +28,13 @@ export const ScrollableRibbon: React.FC<ScrollableRibbonProps> = ({
   const [hasOverflow, setHasOverflow] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [isMouseDown, setIsMouseDown] = useState(false);
+
+  // Mouse drag-to-scroll state refs
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const scrollLeftStartRef = useRef(0);
+  const hasMovedRef = useRef(false);
 
   const checkScrollability = useCallback(() => {
     const el = scrollRef.current;
@@ -37,12 +44,9 @@ export const ScrollableRibbon: React.FC<ScrollableRibbonProps> = ({
     const overflow = scrollWidth > clientWidth + 4;
     setHasOverflow(overflow);
 
-    // In modern browsers, RTL scrollLeft can be 0 at rightmost and negative to the left,
-    // or standard positive. We support both:
     const maxScroll = scrollWidth - clientWidth;
     const absScroll = Math.abs(scrollLeft);
 
-    // General scroll indicator
     setCanScrollLeft(absScroll > 2 || scrollLeft > 2);
     setCanScrollRight(absScroll < maxScroll - 2 || scrollLeft < maxScroll - 2);
   }, []);
@@ -55,32 +59,81 @@ export const ScrollableRibbon: React.FC<ScrollableRibbonProps> = ({
     el.addEventListener('scroll', checkScrollability, { passive: true });
     window.addEventListener('resize', checkScrollability);
 
+    // Mouse wheel horizontal translation
+    const handleWheel = (e: WheelEvent) => {
+      // If user is scrolling wheel vertically, redirect to horizontal scroll
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && el.scrollWidth > el.clientWidth) {
+        e.preventDefault();
+        const isRtl = isAr || document.documentElement.dir === 'rtl';
+        // In RTL Chrome/Safari, scrollLeft decreases to move forward
+        const directionFactor = isRtl ? -1 : 1;
+        el.scrollLeft += e.deltaY * directionFactor;
+      }
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+
     // Monitor DOM mutations inside ribbon
     const observer = new MutationObserver(checkScrollability);
     observer.observe(el, { childList: true, subtree: true });
 
     return () => {
       el.removeEventListener('scroll', checkScrollability);
+      el.removeEventListener('wheel', handleWheel);
       window.removeEventListener('resize', checkScrollability);
       observer.disconnect();
     };
-  }, [checkScrollability, children]);
+  }, [checkScrollability, children, isAr]);
+
+  // Mouse drag-to-scroll handlers
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    isDraggingRef.current = true;
+    setIsMouseDown(true);
+    hasMovedRef.current = false;
+    startXRef.current = e.pageX - el.offsetLeft;
+    scrollLeftStartRef.current = el.scrollLeft;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    const el = scrollRef.current;
+    if (!el) return;
+
+    e.preventDefault();
+    const x = e.pageX - el.offsetLeft;
+    const walk = (x - startXRef.current) * 1.4;
+    if (Math.abs(walk) > 4) {
+      hasMovedRef.current = true;
+    }
+    el.scrollLeft = scrollLeftStartRef.current - walk;
+  };
+
+  const handleMouseUpOrLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isDraggingRef.current && hasMovedRef.current) {
+      // Prevent child button clicks if dragged
+      const target = e.target as HTMLElement;
+      const clickedBtn = target.closest('button');
+      if (clickedBtn) {
+        const preventClick = (clickEvent: MouseEvent) => {
+          clickEvent.stopPropagation();
+          clickEvent.preventDefault();
+          clickedBtn.removeEventListener('click', preventClick, true);
+        };
+        clickedBtn.addEventListener('click', preventClick, true);
+      }
+    }
+    isDraggingRef.current = false;
+    setIsMouseDown(false);
+  };
 
   const handleScroll = (direction: 'left' | 'right') => {
     const el = scrollRef.current;
     if (!el) return;
 
-    const isRtl = isAr || document.documentElement.dir === 'rtl';
-    let delta = scrollAmount;
-
-    if (direction === 'left') {
-      // In RTL, left moves towards the end (negative scrollLeft in Chrome, or positive in Firefox)
-      // We handle delta consistently:
-      delta = isRtl ? -scrollAmount : -scrollAmount;
-    } else {
-      delta = isRtl ? scrollAmount : scrollAmount;
-    }
-
+    const delta = direction === 'left' ? -scrollAmount : scrollAmount;
     el.scrollBy({ left: delta, behavior: 'smooth' });
     playLabSound('click');
   };
@@ -116,11 +169,17 @@ export const ScrollableRibbon: React.FC<ScrollableRibbonProps> = ({
         </button>
       )}
 
-      {/* Main Scrollable Viewport */}
+      {/* Main Scrollable Viewport with Mouse Drag & Wheel Support */}
       <div
         ref={scrollRef}
         dir={isAr ? 'rtl' : 'ltr'}
-        className={`flex-1 flex items-center overflow-x-auto scroll-smooth scrollbar-none py-1 px-1 ${className}`}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUpOrLeave}
+        onMouseLeave={handleMouseUpOrLeave}
+        className={`flex-1 flex items-center overflow-x-auto scroll-smooth scrollbar-none py-1 px-1 touch-pan-x select-none ${
+          isMouseDown ? 'cursor-grabbing' : 'cursor-grab'
+        } ${className}`}
       >
         {children}
       </div>

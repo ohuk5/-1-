@@ -16,16 +16,17 @@ import {
   Calculator,
   Droplet
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp, CalculatorTabType } from '../context/AppContext';
 import { OFFICIAL_GLOSSARY, CURRICULUM_LAWS, TEXTBOOK_EXPERIMENTS } from '../data/curriculumData';
 import { ScrollableRibbon } from './ScrollableRibbon';
+import { InteractiveLawFlipCards } from './InteractiveLawFlipCards';
 
 interface CurriculumReferenceModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialChapter?: number; // 1, 2, 3, 4
   onLaunchExperiment?: (expId: string) => void;
-  onOpenCalculator?: (tab: 'ph' | 'cell_potential' | 'henry' | 'dilution' | 'colligative' | 'molarity') => void;
+  onOpenCalculator?: (tab: CalculatorTabType) => void;
 }
 
 export const CurriculumReferenceModal: React.FC<CurriculumReferenceModalProps> = ({
@@ -541,42 +542,55 @@ export const CurriculumReferenceModal: React.FC<CurriculumReferenceModalProps> =
             </div>
           )}
 
-          {/* SECTION 3: LAWS & CALCULATIONS */}
+          {/* SECTION 3: LAWS & CALCULATIONS (Interactive Flip Cards + Formula Grid) */}
           {activeSection === 'laws' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {CURRICULUM_LAWS.map((law) => (
-                  <div
-                    key={law.id}
-                    className={`p-5 rounded-2xl border flex flex-col justify-between ${
-                      isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <h4 className="font-black text-sm text-cyan-400">{law.nameAr}</h4>
-                        <span className="text-[11px] font-bold text-slate-500">الفصل {law.chapter}</span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-center font-mono text-xs sm:text-sm font-bold text-cyan-300 my-2 select-all" dir="ltr">
-                        {law.formula}
-                      </div>
-                      <p className="text-xs text-slate-300 leading-relaxed mt-2">{law.descriptionAr}</p>
-                    </div>
+            <div className="space-y-6">
+              <InteractiveLawFlipCards
+                domainFilter="chemistry"
+                onOpenCalculatorTab={(tab) => onOpenCalculator?.(tab)}
+                onLaunchChemistryTab={() => onClose()}
+              />
 
-                    <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between">
-                      <span className="text-[11px] text-slate-400 font-mono">{law.nameEn}</span>
-                      {onOpenCalculator && (
-                        <button
-                          onClick={() => onOpenCalculator(law.calculatorType)}
-                          className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-colors"
-                        >
-                          <Calculator className="w-3.5 h-3.5" />
-                          <span>{t('افتح في الحاسبة', 'Open in Calculator')}</span>
-                        </button>
-                      )}
+              <div className="pt-4 border-t border-slate-800/40 space-y-3">
+                <h3 className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                  {t('دليل القوانين الرياضية السريع', 'Quick Formulas Index')}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {CURRICULUM_LAWS.map((law) => (
+                    <div
+                      key={law.id}
+                      className={`p-5 rounded-2xl border flex flex-col justify-between ${
+                        isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <h4 className="font-bold text-sm text-cyan-500">{law.nameAr}</h4>
+                          <span className="text-[11px] font-medium text-slate-500">{t(`الفصل ${law.chapter}`, `Ch ${law.chapter}`)}</span>
+                        </div>
+                        <div className={`p-3 rounded-xl border text-center font-mono text-xs sm:text-sm font-bold my-2 select-all tabular-nums ${
+                          isDark ? 'bg-slate-900 border-slate-800 text-cyan-300' : 'bg-white border-slate-200 text-cyan-700'
+                        }`} dir="ltr">
+                          {law.formula}
+                        </div>
+                        <p className={`text-xs leading-relaxed mt-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{t(law.descriptionAr, law.descriptionEn)}</p>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-slate-800/30 flex items-center justify-between">
+                        <span className="text-[11px] text-slate-500 font-mono">{law.nameEn}</span>
+                        {onOpenCalculator && (
+                          <button
+                            onClick={() => onOpenCalculator(law.calculatorType)}
+                            className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                          >
+                            <Calculator className="w-3.5 h-3.5" />
+                            <span>{t('افتح في الحاسبة', 'Open in Calculator')}</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           )}

@@ -9,10 +9,13 @@ import {
   Info,
   Sliders,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Box,
+  Calculator
 } from 'lucide-react';
 import { playLabSound } from '../utils/soundEffects';
 import { useApp } from '../context/AppContext';
+import { BuretteTitration3D } from './BuretteTitration3D';
 
 interface TitrationPoint {
   volumeAdded: number;
@@ -29,10 +32,11 @@ export const BuretteTitrationModule: React.FC<BuretteTitrationModuleProps> = ({
 }) => {
   const { lang, theme, t } = useApp();
   const isDark = theme === 'dark';
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   // Titration chemical system selection
   const [systemType, setSystemType] = useState<'strong_strong' | 'weak_strong'>('strong_strong');
   // Indicator selection
-  const [indicator, setIndicator] = useState<'phenolphthalein' | 'universal' | 'none'>('phenolphthalein');
+  const [indicator, setIndicator] = useState<'phenolphthalein' | 'methyl_orange' | 'bromothymol' | 'universal' | 'none'>('phenolphthalein');
 
   // Burette physical state
   const [buretteVolume, setBuretteVolume] = useState<number>(50.0); // Starts at 50 mL mark (full)
@@ -40,6 +44,10 @@ export const BuretteTitrationModule: React.FC<BuretteTitrationModuleProps> = ({
   const [flowMode, setFlowMode] = useState<'closed' | 'single' | 'fast' | 'stream'>('closed');
   const [isStirring, setIsStirring] = useState<boolean>(true);
   const [probeImmersed, setProbeImmersed] = useState<boolean>(true);
+  // Instant Equivalence Calculator state (Ma * Va * nb = Mb * Vb * na)
+  const [calcBaseMolarity, setCalcBaseMolarity] = useState<number>(0.1);
+  const [calcAcidVolMl, setCalcAcidVolMl] = useState<number>(25.0);
+  const [calcEquivBaseVolMl, setCalcEquivBaseVolMl] = useState<number>(25.0);
 
   // Droplet visual animation state
   const [isDripping, setIsDripping] = useState<boolean>(false);
@@ -138,6 +146,50 @@ export const BuretteTitrationModule: React.FC<BuretteTitrationModuleProps> = ({
           color: 'rgba(236, 72, 153, 0.85)',
           label: t('وردي أرجواني ساطع (وسط قلوي قوي)', 'Vivid Fuchsia Pink (Excess Alkaline Base)'),
           textClass: isDark ? 'text-pink-400 font-bold' : 'text-pink-600 font-bold'
+        };
+      }
+    }
+
+    if (indicator === 'methyl_orange') {
+      if (currentPh < 3.1) {
+        return {
+          color: 'rgba(239, 68, 68, 0.8)',
+          label: t('أحمر (وسط حمضي قوي pH < 3.1)', 'Red (Acidic pH < 3.1)'),
+          textClass: isDark ? 'text-red-400 font-bold' : 'text-red-600 font-bold'
+        };
+      } else if (currentPh <= 4.4) {
+        return {
+          color: 'rgba(249, 115, 22, 0.8)',
+          label: t('برتقالي انتقالي (3.1 - 4.4)', 'Orange Transition (3.1–4.4)'),
+          textClass: isDark ? 'text-orange-400 font-semibold' : 'text-orange-600 font-semibold'
+        };
+      } else {
+        return {
+          color: 'rgba(250, 204, 21, 0.78)',
+          label: t('أصفر (أعلى من 4.4)', 'Yellow (pH > 4.4)'),
+          textClass: isDark ? 'text-amber-400 font-bold' : 'text-amber-600 font-bold'
+        };
+      }
+    }
+
+    if (indicator === 'bromothymol') {
+      if (currentPh < 6.0) {
+        return {
+          color: 'rgba(250, 204, 21, 0.78)',
+          label: t('أصفر (وسط حمضي pH < 6.0)', 'Yellow (Acidic pH < 6.0)'),
+          textClass: isDark ? 'text-amber-400 font-semibold' : 'text-amber-600 font-semibold'
+        };
+      } else if (currentPh <= 7.6) {
+        return {
+          color: 'rgba(16, 185, 129, 0.82)',
+          label: t('أخضر متعادل (نقطة التكافؤ 6.0 - 7.6)', 'Emerald Green (Neutral 6.0–7.6)'),
+          textClass: isDark ? 'text-emerald-400 font-bold' : 'text-emerald-600 font-bold'
+        };
+      } else {
+        return {
+          color: 'rgba(37, 99, 235, 0.82)',
+          label: t('أزرق (وسط قاعدي pH > 7.6)', 'Blue (Basic pH > 7.6)'),
+          textClass: isDark ? 'text-blue-400 font-bold' : 'text-blue-600 font-bold'
         };
       }
     }
@@ -287,8 +339,36 @@ export const BuretteTitrationModule: React.FC<BuretteTitrationModuleProps> = ({
           </p>
         </div>
 
-        {/* Global Controls */}
-        <div className="flex items-center gap-2">
+        {/* Global Controls & 2D/3D Toggle */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 p-1 bg-slate-950/80 border border-slate-800 rounded-xl">
+            <button
+              type="button"
+              onClick={() => {
+                if (soundEnabled) playLabSound('click');
+                setViewMode('2d');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                viewMode === '2d' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {t('جهاز 2D', '2D Apparatus')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (soundEnabled) playLabSound('click');
+                setViewMode('3d');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                viewMode === '3d' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Box className="w-3.5 h-3.5 text-cyan-300" />
+              <span>{t('معايرة 3D', '3D Titration')}</span>
+            </button>
+          </div>
+
           <button
             onClick={handleReset}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
@@ -353,7 +433,20 @@ export const BuretteTitrationModule: React.FC<BuretteTitrationModuleProps> = ({
             </div>
           </div>
 
-          {/* Center Stage: Iron Stand, Burette Glass Column, Stopcock Valve & Erlenmeyer Flask */}
+          {/* Center Stage: 3D Apparatus OR 2D Iron Stand & Burette */}
+          {viewMode === '3d' ? (
+            <div className="w-full my-2 relative z-10">
+              <BuretteTitration3D
+                buretteVolume={buretteVolume}
+                volumeDispensed={volumeDispensed}
+                flowMode={flowMode}
+                isStirring={isStirring}
+                probeImmersed={probeImmersed}
+                solutionColorCss={solutionStyle.color}
+                currentPh={currentPh}
+              />
+            </div>
+          ) : (
           <div className="relative w-full flex items-center justify-center my-2 h-[380px]">
             {/* Iron Ring Stand Base & Rod */}
             <div className="absolute right-[48%] top-0 bottom-2 w-2.5 bg-gradient-to-r from-slate-600 via-slate-400 to-slate-700 rounded-full shadow-lg" />
@@ -480,6 +573,7 @@ export const BuretteTitrationModule: React.FC<BuretteTitrationModuleProps> = ({
               </div>
             </div>
           </div>
+          )}
 
           {/* Lower Stage: Magnetic Stirrer Plate & Solution Status Bar */}
           <div className={`w-full border rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 relative z-10 text-xs ${
@@ -650,45 +744,78 @@ export const BuretteTitrationModule: React.FC<BuretteTitrationModuleProps> = ({
               <span className="text-slate-400 block font-medium">
                 {t('كاشف الدليل الكيميائي:', 'pH Indicator:')}
               </span>
-              <div className="grid grid-cols-3 gap-1.5">
-                <button
-                  onClick={() => setIndicator('phenolphthalein')}
-                  className={`px-2 py-1.5 rounded text-[11px] font-medium border transition-colors ${
-                    indicator === 'phenolphthalein'
-                      ? 'bg-pink-600 border-pink-400 text-white font-bold'
-                      : isDark
-                      ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                      : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {t('الفينولفثالين', 'Phenolphthalein')}
-                </button>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                {[
+                  { id: 'phenolphthalein' as const, ar: 'الفينولفثالين', en: 'Phenolphthalein', active: 'bg-pink-600 border-pink-400 text-white font-bold' },
+                  { id: 'methyl_orange' as const, ar: 'الميثيل البرتقالي', en: 'Methyl Orange', active: 'bg-orange-600 border-orange-400 text-white font-bold' },
+                  { id: 'bromothymol' as const, ar: 'بروموثيمول الأزرق', en: 'Bromothymol Blue', active: 'bg-blue-600 border-blue-400 text-white font-bold' },
+                  { id: 'universal' as const, ar: 'الكاشف الشامل', en: 'Universal', active: 'bg-emerald-600 border-emerald-400 text-white font-bold' },
+                  { id: 'none' as const, ar: 'بدون كاشف', en: 'None', active: 'bg-slate-700 border-slate-500 text-white font-bold' }
+                ].map((ind) => (
+                  <button
+                    key={ind.id}
+                    onClick={() => setIndicator(ind.id)}
+                    className={`px-2 py-1.5 rounded text-[11px] font-medium border transition-colors ${
+                      indicator === ind.id
+                        ? ind.active
+                        : isDark
+                        ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                        : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {t(ind.ar, ind.en)}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                <button
-                  onClick={() => setIndicator('universal')}
-                  className={`px-2 py-1.5 rounded text-[11px] font-medium border transition-colors ${
-                    indicator === 'universal'
-                      ? 'bg-emerald-600 border-emerald-400 text-white font-bold'
-                      : isDark
-                      ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                      : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {t('الكاشف الشامل', 'Universal Indicator')}
-                </button>
-
-                <button
-                  onClick={() => setIndicator('none')}
-                  className={`px-2 py-1.5 rounded text-[11px] font-medium border transition-colors ${
-                    indicator === 'none'
-                      ? 'bg-slate-700 border-slate-500 text-white font-bold'
-                      : isDark
-                      ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                      : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {t('بدون كاشف', 'No Indicator')}
-                </button>
+            {/* Instant Equivalence Molarity Calculator: Ma * Va = Mb * Vb */}
+            <div className={`p-3 rounded-lg border space-y-2 text-xs ${
+              isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+            }`}>
+              <div className="flex items-center justify-between font-bold text-cyan-400">
+                <span className="flex items-center gap-1.5">
+                  <Calculator className="w-3.5 h-3.5" />
+                  <span>{t('حاسبة مولارية المعايرة (Ma·Va = Mb·Vb)', 'Equivalence Molarity Calculator')}</span>
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-400 block">Mb (M)</label>
+                  <input
+                    type="number"
+                    min={0.01}
+                    step={0.05}
+                    value={calcBaseMolarity}
+                    onChange={(e) => setCalcBaseMolarity(Math.max(0.01, Number(e.target.value) || 0.1))}
+                    className={`w-full px-2 py-1 rounded border font-mono text-[11px] ${isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400 block">Vb (mL)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={0.5}
+                    value={calcEquivBaseVolMl}
+                    onChange={(e) => setCalcEquivBaseVolMl(Math.max(0.5, Number(e.target.value) || 25))}
+                    className={`w-full px-2 py-1 rounded border font-mono text-[11px] ${isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400 block">Va (mL)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={calcAcidVolMl}
+                    onChange={(e) => setCalcAcidVolMl(Math.max(1, Number(e.target.value) || 25))}
+                    className={`w-full px-2 py-1 rounded border font-mono text-[11px] ${isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'}`}
+                  />
+                </div>
+              </div>
+              <div className="text-[11px] font-mono text-emerald-400 font-bold tabular-nums">
+                Ma = (Mb × Vb) / Va = {((calcBaseMolarity * calcEquivBaseVolMl) / Math.max(0.1, calcAcidVolMl)).toFixed(4)} M
               </div>
             </div>
           </div>

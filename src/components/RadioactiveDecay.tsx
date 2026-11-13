@@ -14,10 +14,13 @@ import {
   Sparkles,
   BookOpen,
   Atom,
-  Shield
+  Shield,
+  Box,
+  Calculator
 } from 'lucide-react';
 import { ISOTOPES, IsotopeInfo } from '../data/isotopesData';
 import { useApp } from '../context/AppContext';
+import { RadioactiveDecay3D } from './RadioactiveDecay3D';
 import { playLabSound } from '../utils/soundEffects';
 import { ScrollableRibbon } from './ScrollableRibbon';
 
@@ -45,10 +48,15 @@ interface RadioactiveDecayProps {
 }
 
 export const RadioactiveDecay: React.FC<RadioactiveDecayProps> = ({ onOpenGuide }) => {
-  const { lang, theme, t, activeLabPreset, clearLabExperiment, launchLabExperiment, openCurriculum } = useApp();
+  const { lang, theme, t, activeLabPreset, clearLabExperiment, launchLabExperiment, openCurriculum, openCalculator } = useApp();
   const isDark = theme === 'dark';
+  const [stageViewMode, setStageViewMode] = useState<'2d' | '3d'>('2d');
+  const [calcHalfLivesElapsed, setCalcHalfLivesElapsed] = useState<number>(2);
+  const [calcMassDefectU, setCalcMassDefectU] = useState<number>(0.015);
   const [selectedIsotopeId, setSelectedIsotopeId] = useState<string>('carbon14');
   const [shieldType, setShieldType] = useState<'none' | 'paper' | 'aluminum' | 'lead'>('none');
+  const [shieldThicknessCm, setShieldThicknessCm] = useState<number>(2.0);
+  const [detectorDistanceCm, setDetectorDistanceCm] = useState<number>(22);
   const [gridCells, setGridCells] = useState<DecayCell[]>([]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [elapsedCycles, setElapsedCycles] = useState<number>(0);
@@ -903,19 +911,118 @@ export const RadioactiveDecay: React.FC<RadioactiveDecayProps> = ({ onOpenGuide 
 
         {/* Main Simulation Stage & Decay Curves */}
         <div className="w-full flex-1 min-w-0 flex flex-col xl:flex-row gap-5 order-1 md:order-2">
-          {/* Middle: 100 Nuclei Stochastic Grid */}
+          {/* Middle: Unified 2D / 3D Stage */}
           <div className="w-full xl:flex-1 min-w-0 flex flex-col gap-4">
           <div className={`border rounded-2xl p-4 sm:p-5 shadow-lg space-y-4 ${
             isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200'
           }`}>
-            <div className="flex items-center justify-between">
-              <h3 className={`font-bold text-base ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
-                {t('شبكة النوى المشعة (100 نواة)', 'Radioactive Grid (100 Nuclei)')}
-              </h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1 p-1 bg-slate-950/80 border border-slate-800 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playLabSound('click');
+                      setStageViewMode('2d');
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      stageViewMode === '2d' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {t('شبكة النوى 2D', '2D Nuclei Grid')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playLabSound('click');
+                      setStageViewMode('3d');
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      stageViewMode === '3d' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Box className="w-3.5 h-3.5 text-cyan-300" />
+                    <span>{t('غرفة الإشعاع 3D', '3D Radiation Lab')}</span>
+                  </button>
+                </div>
+                <h3 className={`font-bold text-sm sm:text-base ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                  {stageViewMode === '3d' ? t('مختبر الاختراق والدرع النووي 3D', '3D Nuclear & Shielding Chamber') : t('شبكة النوى المشعة (100 نواة)', 'Radioactive Grid (100 Nuclei)')}
+                </h3>
+              </div>
               <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-950/60 border border-cyan-800 px-2 py-0.5 rounded">
                 {t('الدورة:', 'Cycle:')} {elapsedCycles} ({realElapsedTime} {t(activeIsotope.timeUnit, 'units')})
               </span>
             </div>
+
+            {stageViewMode === '3d' ? (
+              <div className="space-y-3">
+                <RadioactiveDecay3D
+                  isotope={activeIsotope}
+                  shieldType={shieldType}
+                  shieldThicknessCm={shieldThicknessCm}
+                  detectorDistanceCm={detectorDistanceCm}
+                  unstableCount={unstableCount}
+                />
+                <div className="grid grid-cols-4 gap-2 text-xs font-bold">
+                  {[
+                    { id: 'none' as const, label: t('بدون درع', 'No Shield') },
+                    { id: 'paper' as const, label: t('ورق (α)', 'Paper (α)') },
+                    { id: 'aluminum' as const, label: t('ألومنيوم (β)', 'Alum (β)') },
+                    { id: 'lead' as const, label: t('رصاص (γ)', 'Lead (γ)') }
+                  ].map((sh) => (
+                    <button
+                      key={sh.id}
+                      type="button"
+                      onClick={() => {
+                        playLabSound('click');
+                        setShieldType(sh.id);
+                      }}
+                      className={`py-2 px-2 rounded-xl border transition-all ${
+                        shieldType === sh.id
+                          ? 'bg-cyan-600 border-cyan-500 text-white shadow-sm'
+                          : isDark ? 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-slate-50 border-slate-200 text-slate-800'
+                      }`}
+                    >
+                      {sh.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className={`p-2.5 rounded-xl border flex flex-col gap-1 ${isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>{t('سمك الحاجز (cm):', 'Shield Thickness:')}</span>
+                      <span className="font-mono font-bold text-amber-500">{shieldThicknessCm.toFixed(1)} cm</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="6.0"
+                      step="0.5"
+                      disabled={shieldType === 'none' || shieldType === 'paper'}
+                      value={shieldThicknessCm}
+                      onChange={(e) => setShieldThicknessCm(Number(e.target.value))}
+                      className="accent-amber-500 cursor-pointer disabled:opacity-40"
+                    />
+                  </div>
+                  <div className={`p-2.5 rounded-xl border flex flex-col gap-1 ${isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>{t('مسافة عداد جايجر r:', 'Detector Distance r:')}</span>
+                      <span className="font-mono font-bold text-cyan-500">{detectorDistanceCm} cm</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="10"
+                      max="40"
+                      step="2"
+                      value={detectorDistanceCm}
+                      onChange={(e) => setDetectorDistanceCm(Number(e.target.value))}
+                      className="accent-cyan-500 cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
 
             {/* Live Dual-Material Composition Bar (شريط نسبة تحول المواد الحية) */}
             <div className="space-y-1.5 p-3 rounded-xl bg-slate-950 border border-slate-800">
@@ -1024,6 +1131,65 @@ export const RadioactiveDecay: React.FC<RadioactiveDecayProps> = ({ onOpenGuide 
                   'Decay of an individual nucleus is completely random and unpredictable. With a large sample, the exact statistical half-life rule emerges.'
                 )}
               </p>
+            </div>
+              </>
+            )}
+
+            {/* Instant Half-Life & Nuclear Binding Energy Calculator */}
+            <div className={`p-4 rounded-xl border space-y-3 ${
+              isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className={`text-xs font-black flex items-center gap-1.5 ${isDark ? 'text-cyan-300' : 'text-cyan-800'}`}>
+                  <Calculator className="w-4 h-4 text-amber-400" />
+                  <span>{t('حاسبة عمر النصف وطاقة الربط النووي الفورية', 'Instant Half-Life & Binding Energy Calc')}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => openCalculator('half_life')}
+                  className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-400 text-[11px] font-bold"
+                >
+                  {t('فتح الحاسبة الشاملة', 'Open Full Calc')}
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-slate-400">{t('عدد فترات نصف العمر (n = t/T₁/₂):', 'Half-Lives Elapsed (n):')}</span>
+                    <span className="font-mono font-bold text-cyan-400">{calcHalfLivesElapsed} n</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={8}
+                    step={0.5}
+                    value={calcHalfLivesElapsed}
+                    onChange={(e) => setCalcHalfLivesElapsed(Number(e.target.value))}
+                    className="w-full accent-cyan-500"
+                  />
+                  <div className="text-[11px] font-mono text-emerald-400 font-bold mt-1 tabular-nums">
+                    N(t)/N₀ = {(100 * Math.pow(0.5, calcHalfLivesElapsed)).toFixed(2)}% ({t('المتبقي', 'remaining')})
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-slate-400">{t('نقص الكتلة Δm (amu):', 'Mass Defect Δm (u):')}</span>
+                    <span className="font-mono font-bold text-amber-400">{calcMassDefectU.toFixed(3)} u</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0.002}
+                    max={0.25}
+                    step={0.002}
+                    value={calcMassDefectU}
+                    onChange={(e) => setCalcMassDefectU(Number(e.target.value))}
+                    className="w-full accent-amber-500"
+                  />
+                  <div className="text-[11px] font-mono text-amber-300 font-bold mt-1 tabular-nums">
+                    E = Δm·931.5 = {(calcMassDefectU * 931.5).toFixed(2)} MeV
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

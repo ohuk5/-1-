@@ -16,7 +16,11 @@ import {
   Search,
   Atom,
   GripVertical,
-  X
+  X,
+  Box,
+  Calculator,
+  Compass,
+  Hexagon
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
@@ -27,6 +31,12 @@ import {
   CompoundInfo,
   evaluateMoleculeComposition
 } from '../data/compoundsData';
+import {
+  ORGANIC_FUNCTIONAL_GROUPS,
+  OrganicFunctionalGroupDef,
+  SubstituentType,
+  buildOrganicMolecule
+} from '../data/chemistry3CurriculumData';
 import { MoleculeViewer3D } from './MoleculeViewer3D';
 import { playLabSound } from '../utils/soundEffects';
 import { ScrollableRibbon } from './ScrollableRibbon';
@@ -38,9 +48,24 @@ interface MoleculeBuilderProps {
 type ElementGroupFilter = 'all' | 'bio' | 'halogens' | 'alkali' | 'metals' | 'noble';
 
 export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide }) => {
-  const { lang, theme, t, setActiveTab, launchLabExperiment, openCurriculum } = useApp();
+  const { lang, theme, t, launchLabExperiment, openCurriculum, openCalculator } = useApp();
   const isDark = theme === 'dark';
   const isAr = lang === 'ar';
+
+  // Top Sub-Mode: Compound & VSEPR vs Organic Chemistry IUPAC
+  const [builderSubMode, setBuilderSubMode] = useState<'compounds' | 'organic'>('compounds');
+  // Unified 2D / 3D toggle
+  const [viewMode, setViewMode] = useState<'3d' | '2d'>('3d');
+  // Instant Stoichiometry Mole & Molarity Quick Calculator state
+  const [sampleMassG, setSampleMassG] = useState<number>(36);
+  const [solutionVolL, setSolutionVolL] = useState<number>(0.5);
+
+  // Organic IUPAC Lab state
+  const [orgGroupId, setOrgGroupId] = useState<OrganicFunctionalGroupDef['id']>('alcohol');
+  const [orgCarbons, setOrgCarbons] = useState<number>(2);
+  const [orgFuncPos, setOrgFuncPos] = useState<number>(1);
+  const [orgSubstituent, setOrgSubstituent] = useState<SubstituentType>('none');
+  const [orgSubPos, setOrgSubPos] = useState<number>(2);
 
   // State of currently added atom counts { H: 2, O: 1 }
   const [elementCounts, setElementCounts] = useState<Record<string, number>>({
@@ -65,6 +90,110 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
   }, [elementCounts]);
 
   const activeCompound: CompoundInfo | undefined = analysis.compound;
+
+  // Compute organic molecule definition
+  const activeOrgGroup = useMemo(
+    () => ORGANIC_FUNCTIONAL_GROUPS.find((g) => g.id === orgGroupId) || ORGANIC_FUNCTIONAL_GROUPS[0],
+    [orgGroupId]
+  );
+
+  const organicMolecule = useMemo(
+    () => buildOrganicMolecule(orgGroupId, orgCarbons, orgFuncPos, orgSubstituent, orgSubPos),
+    [orgGroupId, orgCarbons, orgFuncPos, orgSubstituent, orgSubPos]
+  );
+
+  // Derive VSEPR & Polarity summary for Compounds mode
+  const vseprSummary = useMemo(() => {
+    if (analysis.totalAtoms === 0) return null;
+    const structure = activeCompound?.structure3D;
+    let atomsList: string[] = [];
+    let bondPairs = 0;
+
+    if (structure && structure.atoms.length > 0) {
+      atomsList = structure.atoms.map((a) => a.element);
+      bondPairs = structure.bonds.length;
+    } else {
+      Object.entries(elementCounts).forEach(([el, c]) => {
+        for (let i = 0; i < c; i++) atomsList.push(el);
+      });
+      bondPairs = Math.max(0, atomsList.length - 1);
+    }
+
+    const formula = activeCompound?.formula || analysis.empiricalFormula;
+    const loneMap: Record<string, number> = {
+      H2O: 2, NH3: 1, H2S: 2, SO2: 1, O3: 1, PCl3: 1, NF3: 1, SF4: 1, ClF3: 2, XeF2: 3, XeF4: 2
+    };
+    const lonePairs = loneMap[activeCompound?.id || ''] ?? loneMap[formula] ?? 0;
+
+    const uniqueElems = Array.from(new Set(atomsList));
+    let maxEn = 0;
+    let minEn = 10;
+    uniqueElems.forEach((sym) => {
+      const en = BUILDER_ELEMENTS_MAP.get(sym)?.electronegativity ?? 2.2;
+      if (en > maxEn) maxEn = en;
+      if (en < minEn) minEn = en;
+    });
+    const deltaEn = uniqueElems.length > 1 ? Number((maxEn - minEn).toFixed(2)) : 0;
+
+    let netDipole = 0;
+    if (structure && structure.atoms.length > 1) {
+      let dx = 0;
+      let dy = 0;
+      let dz = 0;
+      structure.bonds.forEach((b) => {
+        const a1 = structure.atoms[b.from];
+        const a2 = structure.atoms[b.to];
+        if (!a1 || !a2) return;
+        const en1 = BUILDER_ELEMENTS_MAP.get(a1.element)?.electronegativity ?? 2.2;
+        const en2 = BUILDER_ELEMENTS_MAP.get(a2.element)?.electronegativity ?? 2.2;
+        const diff = en2 - en1;
+        const vx = a2.position[0] - a1.position[0];
+        const vy = a2.position[1] - a1.position[1];
+        const vz = a2.position[2] - a1.position[2];
+        const len = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
+        dx += (vx / len) * diff;
+        dy += (vy / len) * diff;
+        dz += (vz / len) * diff;
+      });
+      netDipole = Number(Math.sqrt(dx * dx + dy * dy + dz * dz).toFixed(2));
+    } else {
+      netDipole = deltaEn;
+    }
+
+    const steric = (structure ? Math.min(6, Math.max(1, atomsList.length - 1)) : bondPairs) + lonePairs;
+    let hybridization = 'sp³';
+    let angle = '109.5°';
+    if (steric <= 2) {
+      hybridization = 'sp';
+      angle = '180°';
+    } else if (steric === 3) {
+      hybridization = 'sp²';
+      angle = lonePairs > 0 ? '~117°' : '120°';
+    } else if (steric === 4) {
+      hybridization = 'sp³';
+      angle = lonePairs === 2 ? '104.5°' : lonePairs === 1 ? '107°' : '109.5°';
+    } else if (steric === 5) {
+      hybridization = 'sp³d';
+      angle = '90° / 120°';
+    } else {
+      hybridization = 'sp³d²';
+      angle = '90°';
+    }
+
+    const isIonic = deltaEn >= 1.7;
+    const isPolar = !isIonic && netDipole > 0.2;
+
+    return {
+      steric,
+      lonePairs,
+      hybridization,
+      angle,
+      deltaEn,
+      netDipole,
+      polarityAr: isIonic ? 'أيوني عالي القطبية' : isPolar ? 'تساهمي قطبي (μ ≠ 0)' : 'غير قطبي متماثل (μ ≈ 0)',
+      polarityEn: isIonic ? 'Ionic (High Δχ)' : isPolar ? 'Polar Covalent (μ ≠ 0)' : 'Non-Polar Symmetric (μ ≈ 0)'
+    };
+  }, [activeCompound, analysis, elementCounts]);
 
   // Add an atom
   const handleAddElement = (symbol: string) => {
@@ -292,14 +421,310 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
             )}
           </div>
         </div>
+        {/* Sub-Mode Switcher: Compounds & VSEPR vs Organic Chemistry IUPAC */}
+        <div className={`mt-5 pt-4 border-t flex flex-wrap items-center justify-between gap-3 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+          <div className={`inline-flex p-1 rounded-2xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
+            <button
+              type="button"
+              onClick={() => {
+                playLabSound('click');
+                setBuilderSubMode('compounds');
+              }}
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${
+                builderSubMode === 'compounds'
+                  ? 'bg-cyan-600 text-white shadow-md'
+                  : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-700 hover:text-slate-950'
+              }`}
+            >
+              <Atom className="w-4 h-4" />
+              <span>{t('بناء المركبات و VSEPR والقطبية', 'Compounds, VSEPR & Polarity')}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                playLabSound('click');
+                setBuilderSubMode('organic');
+              }}
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${
+                builderSubMode === 'organic'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-700 hover:text-slate-950'
+              }`}
+            >
+              <Hexagon className="w-4 h-4" />
+              <span>{t('الكيمياء العضوية والتسمية IUPAC', 'Organic Chemistry & IUPAC Lab')}</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => openCalculator('stoichiometry')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all ${
+              isDark
+                ? 'bg-amber-950/40 border-amber-600/40 text-amber-300 hover:bg-amber-900/50'
+                : 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
+            }`}
+          >
+            <Calculator className="w-4 h-4" />
+            <span>{t('حاسبة المول والمادة المحددة', 'Stoichiometry Calculator')}</span>
+          </button>
+        </div>
       </div>
 
-      {/* 2. Three-Column Ergonomic Layout:
-          In RTL (Arabic):
-          - Right Side: Draggable Elements Dock (Right next to Canvas!)
-          - Center: Reaction Workbench & 3D Viewer & Stability Panel
-          - Left Side: Scientific Dossier & Recipes Library
-      */}
+      {builderSubMode === 'organic' ? (
+        /* ORGANIC CHEMISTRY & IUPAC NAMING STUDIO */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Controls Column */}
+          <div className="lg:col-span-5 flex flex-col gap-4">
+            <div className={`p-5 rounded-3xl border space-y-4 ${
+              isDark ? 'bg-slate-900/90 border-slate-800 shadow-lg' : 'bg-white border-slate-200 shadow-sm'
+            }`}>
+              <div className="flex items-center justify-between">
+                <h2 className={`text-base font-black flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                  <Hexagon className="w-5 h-5 text-emerald-400" />
+                  <span>{t('اختيار المجموعة الوظيفية', 'Select Functional Group')}</span>
+                </h2>
+                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  {activeOrgGroup.generalFormula}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 max-h-[290px] overflow-y-auto pe-1">
+                {ORGANIC_FUNCTIONAL_GROUPS.map((grp) => (
+                  <button
+                    key={grp.id}
+                    type="button"
+                    onClick={() => {
+                      playLabSound('click');
+                      setOrgGroupId(grp.id);
+                      if (orgCarbons < grp.minCarbons) setOrgCarbons(grp.minCarbons);
+                    }}
+                    className={`p-2.5 rounded-2xl border text-start transition-all flex flex-col gap-0.5 ${
+                      orgGroupId === grp.id
+                        ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300 shadow-sm'
+                        : isDark
+                        ? 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700'
+                        : 'bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="text-xs font-bold leading-snug">{t(grp.nameAr, grp.nameEn)}</span>
+                    <span className="text-[11px] font-mono text-cyan-400">{grp.functionalTag}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Chain Length & Functional Locant */}
+              <div className={`p-3.5 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="font-bold text-slate-300">{t('طول سلسلة الكربون (C₁–C₈):', 'Carbon Chain Length (C₁–C₈):')}</span>
+                    <span className="font-mono font-black text-emerald-400">C{orgCarbons}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={activeOrgGroup.minCarbons}
+                    max={8}
+                    step={1}
+                    value={Math.max(activeOrgGroup.minCarbons, orgCarbons)}
+                    onChange={(e) => setOrgCarbons(Number(e.target.value))}
+                    className="w-full accent-emerald-500"
+                  />
+                </div>
+
+                {(orgGroupId === 'alkene' || orgGroupId === 'alkyne' || orgGroupId === 'alcohol' || orgGroupId === 'ketone' || orgGroupId === 'amine' || orgGroupId === 'haloalkane') && orgCarbons >= 3 && (
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-bold text-slate-300">{t('موضع المجموعة الوظيفية (الرقم):', 'Functional Group Locant:')}</span>
+                      <span className="font-mono font-bold text-cyan-400">#{orgFuncPos}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={orgGroupId === 'ketone' ? 2 : 1}
+                      max={orgGroupId === 'ketone' ? Math.max(2, orgCarbons - 1) : orgGroupId === 'alkene' || orgGroupId === 'alkyne' ? Math.max(1, orgCarbons - 1) : orgCarbons}
+                      step={1}
+                      value={orgFuncPos}
+                      onChange={(e) => setOrgFuncPos(Number(e.target.value))}
+                      className="w-full accent-cyan-500"
+                    />
+                  </div>
+                )}
+
+                {/* Substituents */}
+                <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                  <span className="text-xs font-bold text-slate-300 block">{t('إضافة تفرع / مستبدل على السلسلة:', 'Chain Substituent:')}</span>
+                  <div className="grid grid-cols-4 gap-1.5 text-[11px] font-bold">
+                    {[
+                      { id: 'none' as const, label: t('بدون', 'None') },
+                      { id: 'methyl' as const, label: t('–CH₃ ميثيل', '–CH₃ Methyl') },
+                      { id: 'chloro' as const, label: t('–Cl كلورو', '–Cl Chloro') },
+                      { id: 'bromo' as const, label: t('–Br برومو', '–Br Bromo') }
+                    ].map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setOrgSubstituent(s.id)}
+                        className={`py-1.5 px-1 rounded-lg border transition-all truncate ${
+                          orgSubstituent === s.id
+                            ? 'bg-cyan-600 border-cyan-500 text-white'
+                            : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                  {orgSubstituent !== 'none' && orgCarbons >= 2 && (
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      <span className="text-[11px] text-slate-400">{t('موضع التفرع:', 'Substituent Locant:')}</span>
+                      <input
+                        type="range"
+                        min={1}
+                        max={orgCarbons}
+                        step={1}
+                        value={Math.min(orgCarbons, orgSubPos)}
+                        onChange={(e) => setOrgSubPos(Number(e.target.value))}
+                        className="flex-1 accent-amber-500"
+                      />
+                      <span className="font-mono text-xs font-bold text-amber-400">#{Math.min(orgCarbons, orgSubPos)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Organic IUPAC Properties & Isomerism Card */}
+            <div className={`p-5 rounded-3xl border space-y-3 ${
+              isDark ? 'bg-slate-900/90 border-slate-800 shadow-lg' : 'bg-white border-slate-200 shadow-sm'
+            }`}>
+              <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-800">
+                <div>
+                  <span className="text-[11px] font-mono font-bold text-emerald-400 block">{t('التسمية النظامية IUPAC:', 'IUPAC Systematic Name:')}</span>
+                  <h3 className={`text-lg font-black mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>{organicMolecule.iupacAr}</h3>
+                  <span className="text-xs font-mono text-cyan-400">{organicMolecule.iupacEn}</span>
+                </div>
+                <div className="text-end shrink-0">
+                  <span className="text-lg font-mono font-black text-emerald-400 block">{organicMolecule.formula}</span>
+                  <span className="text-xs font-mono text-slate-400">{organicMolecule.molarMass} g/mol</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className={`p-2.5 rounded-xl border ${isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                  <span className="text-[10px] text-slate-400 block">{t('التهجين والزوايا', 'Hybridization')}</span>
+                  <strong className="text-cyan-300">{organicMolecule.hybridization}</strong>
+                </div>
+                <div className={`p-2.5 rounded-xl border ${isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                  <span className="text-[10px] text-slate-400 block">{t('القطبية والروابط البينية', 'Polarity & Boiling Point')}</span>
+                  <strong className={isDark ? 'text-slate-200' : 'text-slate-800'}>{t(activeOrgGroup.polarityDescAr, activeOrgGroup.polarityDescEn)}</strong>
+                </div>
+              </div>
+
+              <div className={`p-3 rounded-xl border text-xs leading-relaxed ${
+                isDark ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-200' : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              }`}>
+                <strong className="block mb-0.5">{t('التشاكل البنائي والوظيفي (Isomerism):', 'Structural & Functional Isomerism:')}</strong>
+                <span>{t(organicMolecule.isomerHintAr, organicMolecule.isomerHintEn)}</span>
+              </div>
+              <p className="text-xs text-slate-400">
+                <strong className="text-slate-300">{t('التطبيقات الصناعية: ', 'Uses: ')}</strong>
+                {t(activeOrgGroup.usesAr, activeOrgGroup.usesEn)}
+              </p>
+            </div>
+          </div>
+
+          {/* 2D / 3D Organic Viewport Column */}
+          <div className="lg:col-span-7 flex flex-col gap-4">
+            <div className={`p-4 rounded-3xl border space-y-3 ${
+              isDark ? 'bg-slate-900/90 border-slate-800 shadow-lg' : 'bg-white border-slate-200 shadow-sm'
+            }`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1 p-1 bg-slate-950/80 border border-slate-800 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('2d')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      viewMode === '2d' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {t('صيغة بنائية 2D', '2D Structural Formula')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('3d')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      viewMode === '3d' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Box className="w-3.5 h-3.5" />
+                    <span>{t('مجسم ثلاثي الأبعاد 3D', '3D Organic Model')}</span>
+                  </button>
+                </div>
+
+                <span className="text-xs font-mono font-bold text-emerald-400">
+                  {organicMolecule.iupacAr} ({organicMolecule.formula})
+                </span>
+              </div>
+
+              {viewMode === '3d' ? (
+                <MoleculeViewer3D
+                  analysis={analysis}
+                  elementCounts={{ C: orgCarbons }}
+                  customStructure={{
+                    atoms: organicMolecule.atoms,
+                    bonds: organicMolecule.bonds,
+                    titleAr: organicMolecule.iupacAr,
+                    titleEn: organicMolecule.iupacEn,
+                    formula: organicMolecule.formula
+                  }}
+                />
+              ) : (
+                <div className="w-full h-[380px] sm:h-[450px] rounded-2xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center p-4 overflow-hidden">
+                  <svg viewBox="0 0 500 220" className="w-full h-full max-h-[360px]">
+                    {organicMolecule.bonds2D.map((b, i) => {
+                      const dx = b.x2 - b.x1;
+                      const dy = b.y2 - b.y1;
+                      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                      const nx = (-dy / len) * 4;
+                      const ny = (dx / len) * 4;
+                      if (b.order === 1) {
+                        return <line key={i} x1={b.x1} y1={b.y1} x2={b.x2} y2={b.y2} stroke="#94a3b8" strokeWidth="3" strokeLinecap="round" />;
+                      }
+                      if (b.order === 2) {
+                        return (
+                          <g key={i}>
+                            <line x1={b.x1 + nx} y1={b.y1 + ny} x2={b.x2 + nx} y2={b.y2 + ny} stroke="#22d3ee" strokeWidth="2.5" />
+                            <line x1={b.x1 - nx} y1={b.y1 - ny} x2={b.x2 - nx} y2={b.y2 - ny} stroke="#22d3ee" strokeWidth="2.5" />
+                          </g>
+                        );
+                      }
+                      return (
+                        <g key={i}>
+                          <line x1={b.x1} y1={b.y1} x2={b.x2} y2={b.y2} stroke="#f59e0b" strokeWidth="2.2" />
+                          <line x1={b.x1 + nx * 1.2} y1={b.y1 + ny * 1.2} x2={b.x2 + nx * 1.2} y2={b.y2 + ny * 1.2} stroke="#f59e0b" strokeWidth="2.2" />
+                          <line x1={b.x1 - nx * 1.2} y1={b.y1 - ny * 1.2} x2={b.x2 - nx * 1.2} y2={b.y2 - ny * 1.2} stroke="#f59e0b" strokeWidth="2.2" />
+                        </g>
+                      );
+                    })}
+                    {organicMolecule.atomLabels2D.map((lbl, idx) => (
+                      <g key={idx}>
+                        <circle cx={lbl.x} cy={lbl.y} r="15" fill={lbl.isHetero ? '#0f172a' : '#1e293b'} stroke={lbl.isHetero ? lbl.color : '#475569'} strokeWidth="2" />
+                        <text x={lbl.x} y={lbl.y + 4.5} fill={lbl.isHetero ? lbl.color : '#f8fafc'} fontSize="11.5" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
+                          {lbl.text}
+                        </text>
+                      </g>
+                    ))}
+                  </svg>
+                  <p className="text-xs text-slate-400 font-mono mt-2">
+                    {t('تمثيل الهيكل البنائي ثنائي الأبعاد والمجموعات الوظيفية', '2D Structural Skeleton & Functional Groups')}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+      /* 2. Three-Column Ergonomic Layout (Compounds & VSEPR): */
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* RIGHT SIDE DOCK (in RTL): Draggable Elements Palette (Visible on Desktop lg:col-span-4) */}
@@ -602,12 +1027,154 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
             )}
           </div>
 
-          {/* 3D Ball-and-Stick / Space-Filling Visualizer */}
-          <MoleculeViewer3D
-            compound={activeCompound}
-            analysis={analysis}
-            elementCounts={elementCounts}
-          />
+          {/* Unified 2D / 3D Switcher Bar + Visualizer */}
+          <div className={`p-3 rounded-3xl border space-y-3 ${
+            isDark ? 'bg-slate-900/90 border-slate-800 shadow-md' : 'bg-white border-slate-200 shadow-sm'
+          }`}>
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+              <div className="flex items-center gap-1 p-1 bg-slate-950/80 border border-slate-800 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playLabSound('click');
+                    setViewMode('2d');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    viewMode === '2d' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {t('صيغة لويس 2D', '2D Lewis View')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playLabSound('click');
+                    setViewMode('3d');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                    viewMode === '3d' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Box className="w-3.5 h-3.5 text-cyan-300" />
+                  <span>{t('مجسم VSEPR 3D', '3D VSEPR & Dipoles')}</span>
+                </button>
+              </div>
+              {vseprSummary && (
+                <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg bg-cyan-950/70 border border-cyan-700/50 text-cyan-300">
+                  {vseprSummary.hybridization} · {vseprSummary.angle}
+                </span>
+              )}
+            </div>
+
+            {viewMode === '3d' ? (
+              <MoleculeViewer3D
+                compound={activeCompound}
+                analysis={analysis}
+                elementCounts={elementCounts}
+                showDipoleToggle={true}
+              />
+            ) : (
+              /* 2D Lewis Structure & Bond Polarity SVG Diagram */
+              <div className="w-full h-[380px] sm:h-[450px] rounded-2xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-between p-4">
+                <div className="w-full flex items-center justify-between text-xs text-slate-400">
+                  <span className="font-bold text-cyan-400">
+                    {activeCompound ? t(activeCompound.lewisInfo.geometryAr, activeCompound.lewisInfo.geometryEn) : t('تمثيل لويس الثنائي الأبعاد', '2D Lewis Representation')}
+                  </span>
+                  {vseprSummary && (
+                    <span className="font-mono text-amber-400 font-bold">
+                      Δχ = {vseprSummary.deltaEn}
+                    </span>
+                  )}
+                </div>
+
+                {analysis.totalAtoms === 0 ? (
+                  <p className="text-xs text-slate-500 my-auto">{t('أضف ذرات لعرض تمثيل لويس', 'Add atoms to preview 2D Lewis structure')}</p>
+                ) : (
+                  <svg viewBox="0 0 360 220" className="w-full h-60">
+                    {(() => {
+                      const flat: string[] = [];
+                      Object.entries(elementCounts).forEach(([sym, c]) => {
+                        for (let i = 0; i < c; i++) flat.push(sym);
+                      });
+                      flat.sort((a, b) => (BUILDER_ELEMENTS_MAP.get(b)?.primaryValence ?? 1) - (BUILDER_ELEMENTS_MAP.get(a)?.primaryValence ?? 1));
+                      const centerSym = flat[0];
+                      const centerEl = BUILDER_ELEMENTS_MAP.get(centerSym);
+                      const others = flat.slice(1, 9);
+                      const cx = 180;
+                      const cy = 110;
+                      const rOrbit = 74;
+
+                      return (
+                        <g>
+                          {others.map((sym, idx) => {
+                            const angle = (idx / Math.max(1, others.length)) * Math.PI * 2 - Math.PI / 2;
+                            const px = cx + Math.cos(angle) * rOrbit;
+                            const py = cy + Math.sin(angle) * rOrbit;
+                            const el = BUILDER_ELEMENTS_MAP.get(sym);
+                            const enDiff = (el?.electronegativity ?? 2.2) - (centerEl?.electronegativity ?? 2.2);
+                            const bondOrder = activeCompound?.structure3D?.bonds[idx]?.order ?? 1;
+                            const nx = -Math.sin(angle) * 4;
+                            const ny = Math.cos(angle) * 4;
+
+                            return (
+                              <g key={idx}>
+                                {bondOrder === 1 && <line x1={cx} y1={cy} x2={px} y2={py} stroke="#38bdf8" strokeWidth="3" />}
+                                {bondOrder === 2 && (
+                                  <>
+                                    <line x1={cx + nx} y1={cy + ny} x2={px + nx} y2={py + ny} stroke="#22d3ee" strokeWidth="2.4" />
+                                    <line x1={cx - nx} y1={cy - ny} x2={px - nx} y2={py - ny} stroke="#22d3ee" strokeWidth="2.4" />
+                                  </>
+                                )}
+                                {bondOrder >= 3 && (
+                                  <>
+                                    <line x1={cx} y1={cy} x2={px} y2={py} stroke="#f59e0b" strokeWidth="2.2" />
+                                    <line x1={cx + nx * 1.2} y1={cy + ny * 1.2} x2={px + nx * 1.2} y2={py + ny * 1.2} stroke="#f59e0b" strokeWidth="2.2" />
+                                    <line x1={cx - nx * 1.2} y1={cy - ny * 1.2} x2={px - nx * 1.2} y2={py - ny * 1.2} stroke="#f59e0b" strokeWidth="2.2" />
+                                  </>
+                                )}
+                                <circle cx={px} cy={py} r="19" fill="#0f172a" stroke={el?.colorHex === '#FFFFFF' ? '#94a3b8' : el?.colorHex || '#64748b'} strokeWidth="2.5" />
+                                <text x={px} y={py + 4} fill="#f8fafc" fontSize="12" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
+                                  {sym}
+                                </text>
+                                {Math.abs(enDiff) > 0.4 && (
+                                  <text x={px + Math.cos(angle) * 26} y={py + Math.sin(angle) * 26 + 3} fill={enDiff > 0 ? '#f43f5e' : '#38bdf8'} fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
+                                    {enDiff > 0 ? 'δ−' : 'δ+'}
+                                  </text>
+                                )}
+                              </g>
+                            );
+                          })}
+                          {/* Central Atom */}
+                          <circle cx={cx} cy={cy} r="23" fill="#0f172a" stroke={centerEl?.colorHex === '#FFFFFF' ? '#22d3ee' : centerEl?.colorHex || '#22d3ee'} strokeWidth="3" />
+                          <text x={cx} y={cy + 5} fill="#22d3ee" fontSize="14" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
+                            {centerSym}
+                          </text>
+                          {/* Lone pair dots if present */}
+                          {vseprSummary && vseprSummary.lonePairs > 0 && Array.from({ length: Math.min(2, vseprSummary.lonePairs) }).map((_, lpIdx) => {
+                            const baseAngle = lpIdx === 0 ? -Math.PI / 2 : -Math.PI / 2 + 0.55;
+                            const lx = cx + Math.cos(baseAngle) * 32;
+                            const ly = cy + Math.sin(baseAngle) * 32;
+                            return (
+                              <g key={lpIdx}>
+                                <circle cx={lx - 3} cy={ly} r="2.5" fill="#fde047" />
+                                <circle cx={lx + 3} cy={ly} r="2.5" fill="#fde047" />
+                              </g>
+                            );
+                          })}
+                        </g>
+                      );
+                    })()}
+                  </svg>
+                )}
+
+                <div className="w-full text-center text-xs text-slate-300">
+                  {activeCompound
+                    ? t(activeCompound.lewisInfo.bondsDescAr, activeCompound.lewisInfo.bondsDescEn)
+                    : t('الشحنات الجزئية δ+/δ− تحدد وفق فرق السالبية الكهربائية بين الذرات', 'Partial charges δ+/δ− determined by electronegativity differences')}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Chemical Stability & Octet Rule Assessment Gauge */}
           <div className={`p-5 sm:p-6 rounded-3xl border transition-all ${
@@ -633,7 +1200,7 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
                   <Info className="w-5 h-5 text-slate-400 shrink-0" />
                 )}
                 <div>
-                  <h3 className="text-base font-black tracking-tight text-slate-100">
+                  <h3 className={`text-base font-black tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                     {t(analysis.statusAr, analysis.statusEn)}
                   </h3>
                   <span className="text-xs font-mono font-bold text-cyan-400">
@@ -657,7 +1224,7 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
               )}
             </div>
 
-            <p className="text-xs sm:text-sm leading-relaxed text-slate-200 font-normal">
+            <p className={`text-xs sm:text-sm leading-relaxed font-normal ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
               {t(analysis.explanationAr, analysis.explanationEn)}
             </p>
 
@@ -669,7 +1236,7 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
                 </div>
                 <div className={`p-2.5 rounded-2xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-white border-slate-200'}`}>
                   <span className="text-[11px] text-slate-400 block">{t('إلكترونات التكافؤ', 'Valence e⁻')}</span>
-                  <span className="font-mono text-sm font-bold text-slate-100">{analysis.totalValenceElectrons} e⁻</span>
+                  <span className={`font-mono text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{analysis.totalValenceElectrons} e⁻</span>
                 </div>
                 <div className={`p-2.5 rounded-2xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-white border-slate-200'}`}>
                   <span className="text-[11px] text-slate-400 block">{t('إلكترونات مفردة', 'Unpaired e⁻')}</span>
@@ -679,11 +1246,83 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
                 </div>
                 <div className={`p-2.5 rounded-2xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-white border-slate-200'}`}>
                   <span className="text-[11px] text-slate-400 block">{t('روابط متوقعة', 'Expected Bonds')}</span>
-                  <span className="font-mono text-sm font-bold text-slate-100">{analysis.possibleBonds}</span>
+                  <span className={`font-mono text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{analysis.possibleBonds}</span>
                 </div>
               </div>
             )}
           </div>
+
+          {/* VSEPR Polarity Dossier + Instant Mole & Molarity Calculator */}
+          {vseprSummary && (
+            <div className={`p-5 rounded-3xl border space-y-3 ${
+              isDark ? 'bg-slate-900/90 border-slate-800 shadow-md' : 'bg-white border-slate-200 shadow-sm'
+            }`}>
+              <div className="flex items-center justify-between">
+                <h4 className={`text-sm font-black flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                  <Compass className="w-4 h-4 text-amber-400" />
+                  <span>{t('تحليل VSEPR والقطبية + حاسبة المول الفورية', 'VSEPR Polarity & Instant Mole Calculator')}</span>
+                </h4>
+                <span className="text-xs font-mono font-bold text-amber-400">
+                  {t(vseprSummary.polarityAr, vseprSummary.polarityEn)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className={`p-2.5 rounded-xl border ${isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                  <span className="text-[10px] text-slate-400 block">{t('التهجين', 'Hybridization')}</span>
+                  <strong className="font-mono text-cyan-400">{vseprSummary.hybridization}</strong>
+                </div>
+                <div className={`p-2.5 rounded-xl border ${isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                  <span className="text-[10px] text-slate-400 block">{t('زاوية الرابطة', 'Bond Angle')}</span>
+                  <strong className="font-mono text-emerald-400">{vseprSummary.angle}</strong>
+                </div>
+                <div className={`p-2.5 rounded-xl border ${isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                  <span className="text-[10px] text-slate-400 block">{t('أزواج حرة', 'Lone Pairs')}</span>
+                  <strong className="font-mono text-purple-400">{vseprSummary.lonePairs}</strong>
+                </div>
+              </div>
+
+              {/* Instant Mole & Molarity Calculator */}
+              <div className={`p-3 rounded-2xl border space-y-2 ${isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">{t('كتلة العينة m (g):', 'Sample Mass m (g):')}</label>
+                    <input
+                      type="number"
+                      min={0.1}
+                      step={1}
+                      value={sampleMassG}
+                      onChange={(e) => setSampleMassG(Math.max(0.01, Number(e.target.value) || 0))}
+                      className={`w-full px-2.5 py-1.5 rounded-lg border font-mono text-xs ${
+                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">{t('حجم المحلول V (L):', 'Solution Vol V (L):')}</label>
+                    <input
+                      type="number"
+                      min={0.05}
+                      step={0.1}
+                      value={solutionVolL}
+                      onChange={(e) => setSolutionVolL(Math.max(0.01, Number(e.target.value) || 0.1))}
+                      className={`w-full px-2.5 py-1.5 rounded-lg border font-mono text-xs ${
+                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      }`}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs font-mono">
+                  <span className="text-cyan-400 font-bold tabular-nums">
+                    n = m/M = {(sampleMassG / Math.max(0.1, analysis.totalMass)).toFixed(3)} mol
+                  </span>
+                  <span className="text-emerald-400 font-bold tabular-nums">
+                    M = n/V = {(sampleMassG / Math.max(0.1, analysis.totalMass) / Math.max(0.01, solutionVolL)).toFixed(3)} mol/L
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* LEFT COLUMN: Scientific Dossier & Recipes Library (lg:col-span-12 xl:col-span-3) */}
@@ -905,8 +1544,10 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
           </div>
         </div>
       </div>
+      )}
 
       {/* Mobile Floating Action Button (FAB) */}
+      {builderSubMode === 'compounds' && (
       <div className="fixed bottom-5 end-5 z-40 lg:hidden">
         <button
           type="button"
@@ -922,6 +1563,7 @@ export const MoleculeBuilder: React.FC<MoleculeBuilderProps> = ({ onOpenGuide })
           )}
         </button>
       </div>
+      )}
 
       {/* Mobile Bottom Sheet Drawer Modal */}
       {isMobilePaletteOpen && (

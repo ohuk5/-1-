@@ -30,7 +30,19 @@ export interface ChemicalLaw {
   descriptionAr: string;
   descriptionEn: string;
   chapter: number;
-  calculatorType: 'ph' | 'cell_potential' | 'henry' | 'dilution' | 'colligative' | 'molarity';
+  calculatorType:
+    | 'ph'
+    | 'cell_potential'
+    | 'nernst'
+    | 'faraday'
+    | 'equilibrium'
+    | 'rate_law'
+    | 'stoichiometry'
+    | 'half_life'
+    | 'henry'
+    | 'dilution'
+    | 'colligative'
+    | 'molarity';
 }
 
 export interface TextbookExperiment {
@@ -467,6 +479,66 @@ export const CURRICULUM_LAWS: ChemicalLaw[] = [
     descriptionEn: 'Calculate chemical concentration expressions in molarity, molality, or mass/volume percent.',
     chapter: 1,
     calculatorType: 'molarity'
+  },
+  {
+    id: 'nernst_eq',
+    nameAr: 'معادلة نرنست للجهد غير القياسي وطاقة غيبس',
+    nameEn: 'Nernst Equation & Gibbs Free Energy',
+    formula: 'E_cell = E°_cell - (RT / nF)·ln(Q)  |  ΔG° = -n·F·E°_cell',
+    descriptionAr: 'حساب جهد الخلية الجلفانية الفعلي عند تغير تراكيز الأيونات أو درجة الحرارة، وحساب التغير في طاقة غيبس الحرة لتحديد التلقائية.',
+    descriptionEn: 'Compute non-standard galvanic cell potential under varying ion concentrations and Gibbs free energy.',
+    chapter: 4,
+    calculatorType: 'nernst'
+  },
+  {
+    id: 'faraday_electrolysis',
+    nameAr: 'قوانين فاراداي للتحليل الكهربائي والطلاء',
+    nameEn: "Faraday's Laws of Electrolysis",
+    formula: 'Q = I · t  |  m = (I · t · M) / (n · F)',
+    descriptionAr: 'حساب كتلة الفلز المترسب على الكاثود أو كمية الغاز المتصاعد بدلالة شدة التيار الكهربائي I والزمن t والكتلة المولية وثابت فاراداي 96485 C/mol.',
+    descriptionEn: 'Calculate deposited metal mass or evolved gas quantity from current, time, and Faraday constant.',
+    chapter: 4,
+    calculatorType: 'faraday'
+  },
+  {
+    id: 'equilibrium_constant',
+    nameAr: 'ثابت الاتزان الكيميائي وحاصل التفاعل Q',
+    nameEn: 'Equilibrium Constant Keq, Kp & Reaction Quotient Q',
+    formula: 'Keq = [C]^c [D]^d / ([A]^a [B]^b)  |  Kp = Kc(RT)^Δn',
+    descriptionAr: 'مقارنة حاصل التفاعل Q بثابت الاتزان Keq لتحديد اتجاه الإزاحة التلقائي للتفاعل وفق مبدأ لوشاتيليه.',
+    descriptionEn: 'Compare reaction quotient Q against Keq to predict the direction a reversible reaction shifts.',
+    chapter: 3,
+    calculatorType: 'equilibrium'
+  },
+  {
+    id: 'rate_law_arrhenius',
+    nameAr: 'قانون سرعة التفاعل ومعادلة أرهينيوس',
+    nameEn: 'Reaction Rate Law & Arrhenius Equation',
+    formula: 'Rate = k · [A]^m · [B]^n  |  k = A · exp(-Ea / RT)',
+    descriptionAr: 'حساب سرعة التفاعل الكيميائي من تراكيز المتفاعلات والرتب الجزئية وتأثير درجة الحرارة وطاقة التنشيط Ea.',
+    descriptionEn: 'Compute reaction rate from concentrations and orders, plus temperature/activation-energy effect.',
+    chapter: 3,
+    calculatorType: 'rate_law'
+  },
+  {
+    id: 'stoichiometry_limiting',
+    nameAr: 'الحسابات الكيميائية والمول والمادة المحددة',
+    nameEn: 'Stoichiometry, Moles & Limiting Reactant',
+    formula: 'n = m / M  |  % Yield = (Actual / Theoretical) × 100',
+    descriptionAr: 'تحديد المادة المحددة للتفاعل والمادة الفائضة والمردود النظري والنسبة المئوية للمردود الفعلي.',
+    descriptionEn: 'Determine limiting reactant, excess remaining, theoretical yield, and percent yield.',
+    chapter: 1,
+    calculatorType: 'stoichiometry'
+  },
+  {
+    id: 'half_life_nuclear',
+    nameAr: 'قانون عمر النصف والاضمحلال الإشعاعي',
+    nameEn: 'Radioactive Half-Life & Binding Energy',
+    formula: 'N(t) = N₀ · (1/2)^(t / T₁/₂)  |  E = Δm · c²',
+    descriptionAr: 'حساب الكمية المتبقية من النظير المشع بعد فترة زمنية، وحساب طاقة الربط النووي المكافئة لنقص الكتلة.',
+    descriptionEn: 'Calculate remaining radioactive isotope quantity after elapsed time and nuclear binding energy.',
+    chapter: 3,
+    calculatorType: 'half_life'
   }
 ];
 

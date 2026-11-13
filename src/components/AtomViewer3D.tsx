@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   RotateCcw,
   ZoomIn,
@@ -9,12 +10,13 @@ import {
   Compass,
   Eye,
   Layers,
-  Sparkles,
   Play,
-  Pause
+  Pause,
+  Zap
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { playLabSound } from '../utils/soundEffects';
+import { StageViewportFrame } from './StageViewportFrame';
 
 export interface AtomViewer3DProps {
   protons: number;
@@ -28,7 +30,7 @@ export interface AtomViewer3DProps {
   dimensionMode?: '3d' | '2d';
 }
 
-type ModelViewType = 'bohr_spatial' | 'quantum_cloud' | 'rutherford';
+type ModelViewType = 'bohr_spatial' | 'quantum_cloud' | 'orbital_lobes' | 'rutherford';
 
 export const AtomViewer3D: React.FC<AtomViewer3DProps> = ({
   protons,
@@ -54,6 +56,7 @@ export const AtomViewer3D: React.FC<AtomViewer3DProps> = ({
   const [showRings, setShowRings] = useState<boolean>(true);
   const [showNucleusCluster, setShowNucleusCluster] = useState<boolean>(true);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const excitationProgressRef = useRef<number>(-1); // <0 idle, 0..1 active jump & photon emission
 
   // References to keep Three.js animation and camera in sync
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -84,6 +87,19 @@ export const AtomViewer3D: React.FC<AtomViewer3DProps> = ({
     return distribution;
   }, [electrons]);
 
+  const activeShellCount = React.useMemo(
+    () => Math.max(1, shells.reduce((acc, c, idx) => (c > 0 ? idx + 1 : acc), 1)),
+    [shells]
+  );
+  const recommendedCamRadius = React.useMemo(() => {
+    const outerRadius = 9.0 + Math.max(0, activeShellCount - 1) * 5.2;
+    return Math.max(44, Math.min(135, outerRadius * 2.45));
+  }, [activeShellCount]);
+
+  useEffect(() => {
+    cameraSphericalRef.current.radius = recommendedCamRadius;
+  }, [recommendedCamRadius]);
+
   // Main Three.js Scene Setup & Render Loop
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -101,7 +117,7 @@ export const AtomViewer3D: React.FC<AtomViewer3DProps> = ({
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
     cameraRef.current = camera;
 
-    // 3. Renderer
+    // 3. Renderer + PMREM Studio Environment
     const renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
@@ -113,9 +129,17 @@ export const AtomViewer3D: React.FC<AtomViewer3DProps> = ({
     canvas.style.width = '100%';
     canvas.style.height = '100%';
     canvas.style.display = 'block';
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.1;
     rendererRef.current = renderer;
+
+    const pmremGen = new THREE.PMREMGenerator(renderer);
+    const roomEnv = new RoomEnvironment();
+    const envRT = pmremGen.fromScene(roomEnv, 0.04);
+    scene.environment = envRT.texture;
+    roomEnv.dispose();
+    pmremGen.dispose();
 
     // 4. Lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -652,10 +676,171 @@ export const AtomViewer3D: React.FC<AtomViewer3DProps> = ({
       atomGroup.add(cloudPoints);
     }
 
+    // --- D. SOLID 3D ORBITAL LOBES MODE (s, p, d HARMONIC GEOMETRY) ---
+    let orbitalLobesGroup: THREE.Group | null = null;
+    if (viewType === 'orbital_lobes') {
+      orbitalLobesGroup = new THREE.Group();
+      atomGroup.add(orbitalLobesGroup);
+
+      // Faint XYZ Cartesian reference axes for spatial orientation
+      const axisLen = 28;
+      const axisMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.4 });
+      [
+        [new THREE.Vector3(-axisLen, 0, 0), new THREE.Vector3(axisLen, 0, 0)],
+        [new THREE.Vector3(0, -axisLen, 0), new THREE.Vector3(0, axisLen, 0)],
+        [new THREE.Vector3(0, 0, -axisLen), new THREE.Vector3(0, 0, axisLen)]
+      ].forEach(pts => {
+        const g = new THREE.BufferGeometry().setFromPoints(pts);
+        orbitalLobesGroup!.add(new THREE.Line(g, axisMat));
+      });
+
+      const posPhaseMat = new THREE.MeshPhysicalMaterial({
+        color: 0x06b6d4,
+        emissive: 0x0891b2,
+        emissiveIntensity: 0.25,
+        roughness: 0.18,
+        metalness: 0.05,
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false
+      });
+      const negPhaseMat = new THREE.MeshPhysicalMaterial({
+        color: 0xf43f5e,
+        emissive: 0xbe123c,
+        emissiveIntensity: 0.22,
+        roughness: 0.18,
+        metalness: 0.05,
+        transparent: true,
+        opacity: 0.38,
+        depthWrite: false
+      });
+      const torusMat = new THREE.MeshPhysicalMaterial({
+        color: 0xa855f7,
+        emissive: 0x7e22ce,
+        emissiveIntensity: 0.25,
+        roughness: 0.2,
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false
+      });
+
+      // s-orbitals (1s, 2s, 3s spherical shells)
+      if (orbitalFilter === 'all' || orbitalFilter === 's') {
+        const sMat = new THREE.MeshPhysicalMaterial({
+          color: 0x38bdf8,
+          emissive: 0x0284c7,
+          emissiveIntensity: 0.2,
+          roughness: 0.2,
+          transparent: true,
+          opacity: orbitalFilter === 's' ? 0.36 : 0.18,
+          depthWrite: false
+        });
+        const sRadius = orbitalFilter === 's' ? (electrons > 10 ? 18 : electrons > 2 ? 14 : 9) : 8.5;
+        const sMesh = new THREE.Mesh(new THREE.SphereGeometry(sRadius, 32, 32), sMat);
+        orbitalLobesGroup.add(sMesh);
+        if (electrons > 2 && orbitalFilter === 's') {
+          const innerS = new THREE.Mesh(new THREE.SphereGeometry(sRadius * 0.52, 24, 24), sMat);
+          orbitalLobesGroup.add(innerS);
+        }
+      }
+
+      // p-orbitals (px, py, pz dumbbell lobes with +/- wave phase colors)
+      if (orbitalFilter === 'all' || orbitalFilter === 'p') {
+        const makeTeardropLobe = (dir: THREE.Vector3, mat: THREE.Material, dist = 10.5, scaleXZ = 4.6, scaleY = 8.4) => {
+          const lobeGeo = new THREE.SphereGeometry(1, 24, 24);
+          const lobe = new THREE.Mesh(lobeGeo, mat);
+          lobe.scale.set(scaleXZ, scaleY, scaleXZ);
+          lobe.position.copy(dir).multiplyScalar(dist);
+          lobe.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+          return lobe;
+        };
+
+        // Always draw pz; add px and py if electrons > 6 or specifically viewing 'p'
+        orbitalLobesGroup.add(makeTeardropLobe(new THREE.Vector3(0, 1, 0), posPhaseMat));
+        orbitalLobesGroup.add(makeTeardropLobe(new THREE.Vector3(0, -1, 0), negPhaseMat));
+
+        if (electrons >= 6 || orbitalFilter === 'p') {
+          orbitalLobesGroup.add(makeTeardropLobe(new THREE.Vector3(1, 0, 0), posPhaseMat));
+          orbitalLobesGroup.add(makeTeardropLobe(new THREE.Vector3(-1, 0, 0), negPhaseMat));
+        }
+        if (electrons >= 7 || orbitalFilter === 'p') {
+          orbitalLobesGroup.add(makeTeardropLobe(new THREE.Vector3(0, 0, 1), posPhaseMat));
+          orbitalLobesGroup.add(makeTeardropLobe(new THREE.Vector3(0, 0, -1), negPhaseMat));
+        }
+      }
+
+      // d-orbitals (3d_z2 + 3d_xy cloverleaf)
+      if (orbitalFilter === 'd' || (orbitalFilter === 'all' && electrons > 20)) {
+        const scaleD = orbitalFilter === 'd' ? 1.15 : 0.85;
+        // 4 cloverleaf lobes in XZ plane (d_x2-y2 / d_xy style)
+        const dirs: Array<[THREE.Vector3, THREE.Material]> = [
+          [new THREE.Vector3(1, 0, 1).normalize(), posPhaseMat],
+          [new THREE.Vector3(-1, 0, -1).normalize(), posPhaseMat],
+          [new THREE.Vector3(1, 0, -1).normalize(), negPhaseMat],
+          [new THREE.Vector3(-1, 0, 1).normalize(), negPhaseMat]
+        ];
+        dirs.forEach(([d, m]) => {
+          const lobe = new THREE.Mesh(new THREE.SphereGeometry(1, 22, 22), m);
+          lobe.scale.set(4.2 * scaleD, 9.2 * scaleD, 4.2 * scaleD);
+          lobe.position.copy(d).multiplyScalar(13 * scaleD);
+          lobe.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+          orbitalLobesGroup!.add(lobe);
+        });
+
+        // d_z2 collar torus + axial lobes when focused on 'd'
+        if (orbitalFilter === 'd') {
+          const collar = new THREE.Mesh(new THREE.TorusGeometry(8.2, 2.2, 18, 48), torusMat);
+          collar.rotation.x = Math.PI / 2;
+          orbitalLobesGroup.add(collar);
+          [1, -1].forEach(sign => {
+            const axial = new THREE.Mesh(new THREE.SphereGeometry(1, 22, 22), posPhaseMat);
+            axial.scale.set(4.4, 9.0, 4.4);
+            axial.position.set(0, sign * 12.5, 0);
+            orbitalLobesGroup!.add(axial);
+          });
+        }
+      }
+    }
+
+    // Photon Emission Pulse Ring for Quantum Excitation (n -> n+1 -> n)
+    const photonWaveGeo = new THREE.TorusGeometry(2.5, 0.28, 12, 36);
+    const photonWaveMat = new THREE.MeshBasicMaterial({
+      color: 0xa855f7,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending
+    });
+    const photonWaveMesh = new THREE.Mesh(photonWaveGeo, photonWaveMat);
+    photonWaveMesh.visible = false;
+    atomGroup.add(photonWaveMesh);
+
     // --- ANIMATION LOOP ---
     let time = 0;
     const animate = () => {
       time += 0.016 * orbitSpeed;
+
+      // Advance Quantum Excitation Cycle if active
+      let excitedRadialBoost = 0;
+      if (excitationProgressRef.current >= 0) {
+        excitationProgressRef.current += 0.016;
+        const p = excitationProgressRef.current;
+        if (p < 0.45) {
+          // Rising to n+1 shell
+          excitedRadialBoost = Math.sin((p / 0.45) * (Math.PI / 2)) * 5.2;
+          photonWaveMesh.visible = false;
+        } else if (p < 1.15) {
+          // Relaxing back to n while emitting photon wavepacket
+          const tRelax = (p - 0.45) / 0.7;
+          excitedRadialBoost = Math.max(0, (1 - tRelax * 2.2) * 5.2);
+          photonWaveMesh.visible = true;
+          const waveScale = 1 + tRelax * 9.5;
+          photonWaveMesh.scale.setScalar(waveScale);
+          photonWaveMat.opacity = Math.max(0, 0.85 * (1 - tRelax));
+        } else {
+          excitationProgressRef.current = -1;
+          photonWaveMesh.visible = false;
+        }
+      }
 
       // 1. Update Camera Position from Spherical Coordinates
       if (autoRotate && !isDraggingRef.current) {
@@ -682,22 +867,25 @@ export const AtomViewer3D: React.FC<AtomViewer3DProps> = ({
         });
       }
 
-      // 3. Move Orbiting 3D Electrons with Velocity Vectors
-      electronMeshes.forEach(eData => {
+      // 3. Move Orbiting 3D Electrons with Velocity Vectors (+ Quantum Excitation Jump on outermost valence electron)
+      const valenceIdx = electronMeshes.length - 1;
+      electronMeshes.forEach((eData, idx) => {
         eData.angle += eData.speed * orbitSpeed;
+        const r = idx === valenceIdx ? eData.orbitRadius + excitedRadialBoost : eData.orbitRadius;
 
-        // Position on 2D orbital circle
-        const localX = Math.cos(eData.angle) * eData.orbitRadius;
-        const localZ = Math.sin(eData.angle) * eData.orbitRadius;
+        const localX = Math.cos(eData.angle) * r;
+        const localZ = Math.sin(eData.angle) * r;
         const localPos = new THREE.Vector3(localX, 0, localZ);
 
-        // Apply 3D plane inclination rotation
         const euler = new THREE.Euler(eData.inclinationX, eData.inclinationY, eData.inclinationZ, 'XYZ');
         localPos.applyEuler(euler);
 
         eData.mesh.position.copy(localPos);
+        if (idx === valenceIdx && excitedRadialBoost > 0.3 && photonWaveMesh.visible === false) {
+          photonWaveMesh.position.copy(localPos);
+          photonWaveMesh.rotation.set(eData.inclinationX, eData.inclinationY, eData.inclinationZ);
+        }
 
-        // Orient 3D Direction Arrow strictly along instantaneous tangent velocity vector
         if (eData.arrowGroup && showSpinArrows) {
           const tangentDir = eData.speed >= 0 ? 1 : -1;
           const tangentLocal = new THREE.Vector3(
@@ -706,15 +894,17 @@ export const AtomViewer3D: React.FC<AtomViewer3DProps> = ({
             Math.cos(eData.angle) * tangentDir
           ).normalize().applyEuler(euler);
 
-          // Direct local orientation from +Z forward to tangentLocal
           eData.arrowGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tangentLocal);
         }
       });
 
-      // 4. Subtle rotation for Quantum Cloud
+      // 4. Subtle rotation for Quantum Cloud & Orbital Lobes
       if (cloudPoints) {
         cloudPoints.rotation.y += 0.002 * orbitSpeed;
         cloudPoints.rotation.x += 0.001 * orbitSpeed;
+      }
+      if (orbitalLobesGroup) {
+        orbitalLobesGroup.rotation.y += 0.003 * orbitSpeed;
       }
 
       if (container.clientWidth > 0 && container.clientHeight > 0) {
@@ -762,6 +952,15 @@ export const AtomViewer3D: React.FC<AtomViewer3DProps> = ({
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
+      scene.traverse((obj) => {
+        if ((obj as THREE.Mesh).geometry) (obj as THREE.Mesh).geometry.dispose();
+        const mat = (obj as THREE.Mesh).material;
+        if (mat) {
+          if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+          else mat.dispose();
+        }
+      });
+      envRT.dispose();
       renderer.dispose();
       scene.clear();
     };
@@ -850,178 +1049,247 @@ export const AtomViewer3D: React.FC<AtomViewer3DProps> = ({
 
   const resetCamera = () => {
     cameraSphericalRef.current = {
-      radius: 75,
+      radius: recommendedCamRadius,
       theta: Math.PI / 4,
       phi: Math.PI / 3
     };
   };
 
+  const triggerQuantumJump = () => {
+    playLabSound('spark');
+    excitationProgressRef.current = 0;
+  };
+
   return (
-    <div
-      ref={containerRef}
-      className={`relative w-full aspect-square max-w-[420px] rounded-2xl overflow-hidden border shadow-2xl flex flex-col items-center justify-center select-none transition-all ${
-        isFullscreen ? 'fixed inset-4 z-50 max-w-none aspect-auto bg-slate-950/95 backdrop-blur-xl border-cyan-500/50' : ''
-      } ${
-        isDark ? 'bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border-slate-800' : 'bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 border-slate-700'
-      }`}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onWheel={handleWheel}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
-      {/* Three.js Interactive Canvas */}
-      <canvas
-        ref={canvasRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing block"
-      />
+    <div className="w-full max-w-[460px]">
+      <StageViewportFrame
+        isFullscreen={isFullscreen}
+        canvasHeightClass="h-[340px] sm:h-[380px]"
+        accentColor="cyan"
+        title={
+          <>
+            <h3 className="text-sm sm:text-base font-bold truncate">
+              {elementName}
+            </h3>
+            <span dir="ltr" className="text-xs font-mono font-bold text-cyan-500">
+              {elementSymbol}
+            </span>
+          </>
+        }
+        subtitle={
+          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+            <div className={`inline-flex items-center gap-0.5 p-0.5 rounded-lg border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  playLabSound('click');
+                  setViewType('bohr_spatial');
+                }}
+                className={`px-2 py-0.5 rounded-md text-[11px] font-bold whitespace-nowrap transition-colors ${
+                  viewType === 'bohr_spatial' ? 'bg-cyan-600 text-white' : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {t('بور 3D', '3D Bohr')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playLabSound('click');
+                  setViewType('rutherford');
+                }}
+                className={`px-2 py-0.5 rounded-md text-[11px] font-bold whitespace-nowrap transition-colors ${
+                  viewType === 'rutherford' ? 'bg-cyan-600 text-white' : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {t('رذرفورد', 'Rutherford')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playLabSound('click');
+                  setViewType('quantum_cloud');
+                }}
+                className={`px-2 py-0.5 rounded-md text-[11px] font-bold whitespace-nowrap transition-colors ${
+                  viewType === 'quantum_cloud' ? 'bg-cyan-600 text-white' : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {t('السحابة', 'Cloud')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playLabSound('click');
+                  setViewType('orbital_lobes');
+                }}
+                className={`px-2 py-0.5 rounded-md text-[11px] font-bold whitespace-nowrap transition-colors ${
+                  viewType === 'orbital_lobes' ? 'bg-cyan-600 text-white' : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {t('أفلاك s/p/d', 's/p/d')}
+              </button>
+            </div>
 
-      {/* Top Floating Controls Bar */}
-      <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none gap-2 z-10">
-        {/* Model Mode Selector Tabs */}
-        <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-800 backdrop-blur-md p-1 rounded-xl pointer-events-auto shadow-lg">
-          <button
-            onClick={() => {
-              playLabSound('click');
-              setViewType('bohr_spatial');
-            }}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
-              viewType === 'bohr_spatial'
-                ? 'bg-cyan-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
-            }`}
-            title={t('نموذج بور الفضائي ثلاثي الأبعاد المائل', '3D Tilted Bohr Spatial Orbits')}
-          >
-            {t('بور مجسم', '3D Bohr')}
-          </button>
-          <button
-            onClick={() => {
-              playLabSound('click');
-              setViewType('rutherford');
-            }}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
-              viewType === 'rutherford'
-                ? 'bg-cyan-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
-            }`}
-            title={t('نموذج رذرفورد الفضائي المتقاطع', 'Rutherford Crossed Orbits')}
-          >
-            {t('رذرفورد', 'Rutherford')}
-          </button>
-          <button
-            onClick={() => {
-              playLabSound('click');
-              setViewType('quantum_cloud');
-            }}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 ${
-              viewType === 'quantum_cloud'
-                ? 'bg-cyan-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
-            }`}
-            title={t('السحابة الإلكترونية الكمية الاحتمالية |ψ|²', 'Quantum Probability Cloud')}
-          >
-            <Sparkles className="w-2.5 h-2.5 text-cyan-300" />
-            <span>{t('السحابة الكمية', 'Cloud')}</span>
-          </button>
-        </div>
-
-        {/* Viewport Action Tools */}
-        <div className="flex items-center gap-1 pointer-events-auto">
-          <button
-            onClick={() => setAutoRotate(!autoRotate)}
-            className={`p-1.5 rounded-lg border text-xs backdrop-blur-md transition-all ${
-              autoRotate
-                ? 'bg-cyan-950/80 border-cyan-700/60 text-cyan-300'
-                : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white'
-            }`}
-            title={autoRotate ? t('إيقاف الدوران التلقائي', 'Pause auto-rotation') : t('تشغيل الدوران التلقائي', 'Auto-rotate')}
-          >
-            {autoRotate ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-          </button>
-
-          <button
-            onClick={() => setShowRings(!showRings)}
-            className={`p-1.5 rounded-lg border text-xs backdrop-blur-md transition-all ${
-              showRings
-                ? 'bg-slate-800 border-slate-700 text-cyan-300'
-                : 'bg-slate-900/80 border-slate-800 text-slate-500 hover:text-white'
-            }`}
-            title={t('إظهار/إخفاء حلقات المدارات ثلاثية الأبعاد', 'Toggle 3D Orbit Rings')}
-          >
-            <Layers className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white backdrop-blur-md transition-all"
-            title={isFullscreen ? t('تصغير النافذة', 'Exit fullscreen') : t('تكبير ثلاثي الأبعاد', '3D Fullscreen')}
-          >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Quantum Subshell Filter Floating Selector (s, p, d, all) */}
-      {viewType === 'quantum_cloud' && (
-        <div className="absolute top-12 left-2 flex items-center gap-1 bg-slate-950/90 border border-cyan-500/40 backdrop-blur-md p-1 rounded-xl z-20 shadow-xl">
-          <span className="text-[9px] font-mono font-bold text-cyan-400 px-1">
-            {t('المدار:', 'Orbital:')}
-          </span>
-          {(['all', 's', 'p', 'd'] as const).map(orb => (
+            {(viewType === 'quantum_cloud' || viewType === 'orbital_lobes') && (
+              <div className={`inline-flex items-center gap-0.5 p-0.5 rounded-lg border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+                {(['all', 's', 'p', 'd'] as const).map((orb) => (
+                  <button
+                    key={orb}
+                    type="button"
+                    onClick={() => {
+                      playLabSound('click');
+                      setOrbitalFilter(orb);
+                    }}
+                    className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap transition-colors ${
+                      orbitalFilter === orb ? 'bg-cyan-600 text-white' : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {orb === 'all' ? t('الكل', 'All') : orb}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        }
+        toolbar={
+          <div className="flex items-center gap-1">
             <button
-              key={orb}
               type="button"
-              onClick={() => {
-                playLabSound('click');
-                setOrbitalFilter(orb);
-              }}
-              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
-                orbitalFilter === orb
-                  ? 'bg-cyan-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              onClick={() => setAutoRotate(!autoRotate)}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                autoRotate
+                  ? 'bg-cyan-600 border-cyan-500 text-white'
+                  : isDark
+                  ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                  : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
               }`}
+              title={autoRotate ? t('إيقاف الدوران التلقائي', 'Pause auto-rotation') : t('تشغيل الدوران التلقائي', 'Auto-rotate')}
             >
-              {orb === 'all' ? t('الكل', 'All') : orb === 's' ? 's (كروي)' : orb === 'p' ? 'p (فصوص)' : 'd (رباعي)'}
+              {autoRotate ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
             </button>
-          ))}
-        </div>
-      )}
 
-      {/* Floating Zoom & Reset Camera Controls */}
-      <div className="absolute right-2 bottom-2 flex flex-col gap-1 z-10">
-        <button
-          onClick={zoomIn}
-          className="p-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md"
-          title={t('تقريب (+)', 'Zoom In')}
-        >
-          <ZoomIn className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={zoomOut}
-          className="p-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md"
-          title={t('تبعيد (-)', 'Zoom Out')}
-        >
-          <ZoomOut className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={resetCamera}
-          className="p-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md"
-          title={t('إعادة ضبط زاوية الكاميرا', 'Reset Camera')}
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-        </button>
-      </div>
+            <button
+              type="button"
+              onClick={triggerQuantumJump}
+              disabled={electrons === 0 || (viewType !== 'bohr_spatial' && viewType !== 'rutherford')}
+              className={`p-1.5 rounded-lg border transition-colors disabled:opacity-40 ${
+                isDark
+                  ? 'bg-slate-800 border-slate-700 text-purple-300 hover:text-white hover:border-purple-500'
+                  : 'bg-white border-slate-200 text-purple-600 hover:border-purple-500'
+              }`}
+              title={t('تحفيز قفزة كمومية للإلكترون (n → n+1) وانبعاث فوتون', 'Trigger Quantum Jump (n → n+1) & Photon Emission')}
+            >
+              <Zap className="w-3.5 h-3.5" />
+            </button>
 
-      {/* Bottom Hint / Info Badge */}
-      <div className="absolute left-2 bottom-2 pointer-events-none z-10">
-        <div className="bg-slate-900/80 border border-slate-800/80 backdrop-blur-md px-2 py-1 rounded-lg text-[10px] text-slate-400 flex items-center gap-1.5">
-          <Compass className="w-3 h-3 text-cyan-400 shrink-0" />
-          <span>{t('اسحب للف والدوران ثلاثي الأبعاد | مرر للتقريب', 'Drag to rotate 3D | Scroll to zoom')}</span>
+            <button
+              type="button"
+              onClick={() => setShowNucleusCluster(!showNucleusCluster)}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                showNucleusCluster
+                  ? 'border-red-500/50 text-red-400 bg-red-500/10'
+                  : isDark
+                  ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                  : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+              }`}
+              title={t('إظهار/إخفاء تجمع البروتونات والنيوترونات بالنواة', 'Toggle 3D Nucleus Cluster')}
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowRings(!showRings)}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                showRings
+                  ? 'border-cyan-500/60 text-cyan-500 bg-cyan-500/10'
+                  : isDark
+                  ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                  : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+              }`}
+              title={t('إظهار/إخفاء حلقات المدارات ثلاثية الأبعاد', 'Toggle 3D Orbit Rings')}
+            >
+              <Layers className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={zoomIn}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-cyan-400' : 'bg-white border-slate-200 text-slate-600 hover:text-cyan-700'
+              }`}
+              title={t('تقريب (+)', 'Zoom In')}
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={zoomOut}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-cyan-400' : 'bg-white border-slate-200 text-slate-600 hover:text-cyan-700'
+              }`}
+              title={t('تبعيد (-)', 'Zoom Out')}
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={resetCamera}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-cyan-400' : 'bg-white border-slate-200 text-slate-600 hover:text-cyan-700'
+              }`}
+              title={t('إعادة ضبط زاوية الكاميرا', 'Reset Camera')}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                isFullscreen
+                  ? 'bg-cyan-600 border-cyan-500 text-white'
+                  : isDark
+                  ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                  : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+              }`}
+              title={isFullscreen ? t('تصغير النافذة', 'Exit fullscreen') : t('تكبير ثلاثي الأبعاد', '3D Fullscreen')}
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        }
+        bottomBar={
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="flex items-center gap-1.5">
+              <Compass className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
+              <span>{t('اسحب للف والدوران 360° · مرر للتقريب', 'Drag 360° · Scroll to zoom')}</span>
+            </span>
+            <span className="font-mono tabular-nums">
+              {protons}p⁺ · {neutrons}n⁰ · {electrons}e⁻
+            </span>
+          </div>
+        }
+      >
+        <div
+          ref={containerRef}
+          className="w-full h-full select-none"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          <canvas
+            ref={canvasRef}
+            className="w-full h-full cursor-grab active:cursor-grabbing block"
+          />
         </div>
-      </div>
+      </StageViewportFrame>
     </div>
   );
 };

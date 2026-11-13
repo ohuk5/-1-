@@ -17,7 +17,9 @@ import {
   GripHorizontal,
   RotateCcw,
   Wind,
-  Orbit
+  Orbit,
+  GraduationCap,
+  Info
 } from 'lucide-react';
 import { useApp, ActiveTabType, PhysicsStationId, AppDomain } from '../context/AppContext';
 
@@ -42,6 +44,7 @@ export const FloatingQuickGuide: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [guideDomain, setGuideDomain] = useState<AppDomain>(currentDomain);
   const [selectedGuideKey, setSelectedGuideKey] = useState<string>('atom-builder');
+  const [physicsTabMode, setPhysicsTabMode] = useState<'info' | 'steps'>('info');
 
   // Draggable Window State
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
@@ -290,82 +293,206 @@ export const FloatingQuickGuide: React.FC = () => {
       icon: React.ReactNode;
       goalAr: string;
       goalEn: string;
+      coreFormula: string;
+      scientificInfoAr: {
+        concept: string;
+        explanation: string;
+        applications: string[];
+        fact: string;
+      };
+      scientificInfoEn: {
+        concept: string;
+        explanation: string;
+        applications: string[];
+        fact: string;
+      };
       stepsAr: string[];
       stepsEn: string[];
       tipAr: string;
       tipEn: string;
     }
   > = {
-    gas_fluid: {
-      stationId: 'gas_fluid',
+    mechanics: {
+      stationId: 'mechanics',
       num: '01',
-      titleAr: 'قوانين الغازات والموائع وقاعدة أرخميدس',
-      titleEn: 'Gas Laws & Archimedes Buoyancy',
-      shortAr: 'الغازات والموائع',
-      shortEn: 'Gas & Fluids',
+      titleAr: 'محاكي الميكانيكا وقاعدة أرخميدس',
+      titleEn: 'Mechanics & Archimedes Simulator',
+      shortAr: 'محاكي الميكانيكا',
+      shortEn: 'Mechanics',
       icon: <Wind className="w-4 h-4 text-cyan-400" />,
-      goalAr: 'استكشاف قوانين بويل وشارل وغاي-لوساك وتصادمات الجسيمات المرنة، مع حوض الموائع لاختبار قوى الطفو وكثافة الأجسام.',
-      goalEn: 'Explore Boyle, Charles, and Gay-Lussac gas laws, particle kinetics, and Archimedes fluid buoyancy in various fluids.',
+      goalAr: 'دراسة ميكانيكا الموائع، قاعدة أرخميدس، حساب قوى الطفو وضغط السوائل واختبار طفو المواد وكثافتها.',
+      goalEn: 'Study fluid mechanics, Archimedes buoyancy force, hydrostatic pressure, and density testing.',
+      coreFormula: 'F_b = ρ_fluid · V_displaced · g',
+      scientificInfoAr: {
+        concept: 'قاعدة أرخميدس والضغط الهيدروستاتيكي',
+        explanation: 'ينص مبدأ أرخميدس على أن أي جسم مغمور كلياً أو جزئياً في مائع تؤثر عليه قوة رأسية للأعلى تسمى قوة الطفو، وتساوي تماماً وزن المائع الذي يزيحه الجسم. يطفو الجسم إذا كانت كثافته الإجمالية أقل من كثافة السائل المحيط به، ويغوص إذا تجاوزتها.',
+        applications: [
+          'هندسة الغواصات: تملأ وتفرغ خزانات الصابورة (Ballast) بالماء للتحكم بمعدل الغوص والطفو.',
+          'السفن الفولاذية: حجم التجويف الهوائي يرفع الحجم الكلي المزاح مما يجعل متوسط كثافة السفينة أقل من الماء.',
+          'المناطيد وبالونات الطقس: ملء الغلاف بغاز الهيليوم أو الهواء الساخن الأقل كثافة من الهواء الجوي.'
+        ],
+        fact: 'شذوذ كثافة الماء: يصل الماء لأعلى كثافة عند 4°C ويتمدد عند التجمّد ليطفو الجليد، مما يحمي الحياة البحرية شتاءً!'
+      },
+      scientificInfoEn: {
+        concept: 'Archimedes Principle & Hydrostatic Pressure',
+        explanation: 'Any object wholly or partly submerged in a fluid is buoyed up by a force equal to the weight of fluid displaced. Objects float if their overall density is below fluid density and sink if greater.',
+        applications: [
+          'Submarines: Flood and blow ballast tanks to control net buoyancy for diving and surfacing.',
+          'Steel Cargo Ships: Massive internal hollow volume keeps mean vessel density far below water density.',
+          'Hot Air Balloons & Airships: Use lower-density heated air or helium to float in atmospheric fluid.'
+        ],
+        fact: 'Water Density Anomaly: Water is densest at 4°C and expands when freezing, allowing ice to float and insulate marine ecosystems!'
+      },
       stepsAr: [
-        'اسحب المكبس لتغيير الحجم أو ارفع شعلة الحرارة لمراقبة ارتفاع الضغط وسرعة الجسيمات.',
-        'انتقل لتبويب "خزان الطفو" لغمر كتل مختلفة واختبار الطفو في الماء أو الزيت أو العسل أو الزئبق.'
+        'اختر نوع السائل (ماء نقي 1000 kg/m³، زيت 920 kg/m³، عسل 1420 kg/m³، أو زئبق 13600 kg/m³) ولاحظ تغير قوة الطفو.',
+        'اضبط كثافة وحجم الجسم واختبر طفوه أو غوصه مع تغيير تسارع الجاذبية في كواكب مختلفة (الأرض، القمر، المشتري).'
       ],
       stepsEn: [
-        'Drag the piston to alter volume or push the burner up to observe pressure rise and particle speeds.',
-        'Switch to the Buoyancy Tank tab to submerge blocks and compare buoyancy in water, oil, honey, or mercury.'
+        'Select fluid type (water, oil, honey, mercury) to observe buoyant force scaling with fluid density.',
+        'Adjust object density and displacement volume across Earth, Moon, and Jupiter gravity regimes.'
       ],
-      tipAr: 'يمكنك تثبيت درجة الحرارة لمراقبة قانون بويل (علاقة عكسية بين الحجم والضغط) بدقة بالغة.',
-      tipEn: 'Lock Temperature to strictly isolate Boyle\'s law (inverse relationship between volume and pressure).'
+      tipAr: 'قوة الطفو لا تعتمد على عمق الغمر بمجرد أن يغمر الجسم بالكامل، بل تعتمد حصراً على حجم السائل المزاح وكثافته.',
+      tipEn: 'Buoyant force does not depend on depth once fully submerged; it depends solely on fluid density and displaced volume.'
     },
-    electrostatics: {
-      stationId: 'electrostatics',
+    thermodynamics: {
+      stationId: 'thermodynamics',
       num: '02',
-      titleAr: 'الكهرباء الساكنة وحقول كولوم',
-      titleEn: 'Electrostatics & Coulomb Fields',
-      shortAr: 'الكهرباء الساكنة',
-      shortEn: 'Electrostatics',
+      titleAr: 'محاكي الديناميكا الحرارية والغازات',
+      titleEn: 'Thermodynamics & Gas Kinetics',
+      shortAr: 'محاكي الديناميكا الحرارية',
+      shortEn: 'Thermodynamics',
+      icon: <Flame className="w-4 h-4 text-amber-400" />,
+      goalAr: 'استكشاف النظرية الحركية للغازات، معادلة الحالة العامة PV=nRT، وعلاقات بويل وشارل وغاي-لوساك.',
+      goalEn: 'Explore kinetic theory of gases, ideal gas equation PV=nRT, and gas laws.',
+      coreFormula: 'P · V = n · R · T   |   K_avg = (3/2) · k_B · T',
+      scientificInfoAr: {
+        concept: 'النظرية الحركية للغازات والديناميكا الحرارية',
+        explanation: 'يفسر النموذج المجهري ضغط الغاز بأنه محصلة مليارات التصادمات المرنة لجسيمات الغاز العشوائية مع الجدران. درجة الحرارة المطلقة بالكلفن هي مقياس مباشر لمتوسط الطاقة الحركية الانتقالية لجزيئات الغاز.',
+        applications: [
+          'محركات الاحتراق الداخلي: استغلال التمدد الحراري اللحظي للغاز المحترق لدفع مكابس المحرك.',
+          'الثلاجات والمكيفات: دورة التبريد بالانضغاط وتأثير التمدد الخانق للغازات (تأثير جول-طومسون).',
+          'أسطوانات الغاز وإطارات السيارات: زيادة حرارة الجو ترفع ضغط الإطارات تلقائياً حسب قانون غاي-لوساك.'
+        ],
+        fact: 'الصفر المطلق (0 Kelvin = -273.15°C) هو أدنى درجة حرارة ممكنة نظرياً تتوقف عندها الحركة الانتقالية الكلاسيكية للجسيمات!'
+      },
+      scientificInfoEn: {
+        concept: 'Kinetic Theory of Gases & Thermodynamics',
+        explanation: 'Gas pressure emerges from billions of microscopic elastic collisions against boundary walls. Absolute temperature in Kelvin is directly proportional to mean translational kinetic energy.',
+        applications: [
+          'Internal Combustion Engines: Rapid thermal expansion of ignited gas mixture drives pistons.',
+          'Refrigeration & Heat Pumps: Vapor compression cycles and throttling Joule-Thomson expansion.',
+          'Vehicle Tire Safety: Temperature increases directly drive tire air pressure via Gay-Lussac\'s law.'
+        ],
+        fact: 'Absolute Zero (0 K = -273.15°C) represents the lowest theoretical temperature where classical thermal motion ceases!'
+      },
+      stepsAr: [
+        'اسحب المكبس لتغيير الحجم أو ارفع شعلة الحرارة لمراقبة ارتفاع الضغط ومعدل تصادمات الجسيمات.',
+        'فعّل تثبيت أحد المتغيرات لعزل قوانين بويل (ثبات T) أو شارل (ثبات P) أو غاي-لوساك (ثبات V).'
+      ],
+      stepsEn: [
+        'Drag the piston to alter volume or ignite the burner to watch pressure climb alongside particle velocities.',
+        'Lock a variable to isolate Boyle\'s law (const T), Charles\'s law (const P), or Gay-Lussac\'s law (const V).'
+      ],
+      tipAr: 'ثابت الغازات العام: R = 8.314 J/(mol·K) = 0.08206 L·atm/(mol·K).',
+      tipEn: 'Universal gas constant: R = 8.314 J/(mol·K) = 0.08206 L·atm/(mol·K).'
+    },
+    electromagnetism: {
+      stationId: 'electromagnetism',
+      num: '03',
+      titleAr: 'محاكي الكهرومغناطيسية وحقول كولوم',
+      titleEn: 'Electromagnetism & Coulomb Fields',
+      shortAr: 'محاكي الكهرومغناطيسية',
+      shortEn: 'Electromagnetism',
       icon: <Zap className="w-4 h-4 text-purple-400" />,
       goalAr: 'محاكاة قانون كولوم وحساب القوة المتبادلة ورسم متجهات المجال الكهربائي والجهد وإطلاق شحنات اختبارية.',
       goalEn: 'Simulate Coulomb\'s law, calculate mutual electric force, render vector fields, and launch test charges.',
+      coreFormula: 'F = k_e · (|q₁ · q₂|) / r²   |   k_e ≈ 8.99 × 10⁹ N·m²/C²',
+      scientificInfoAr: {
+        concept: 'قانون كولوم وخصائص المجال الكهروستاتيكي',
+        explanation: 'تتناسب القوة الكهروستاتيكية المتبادلة بين أي شحنتين نقطيتين طردياً مع حاصل ضرب مقدار الشحنتين وعكسياً مع مربع المسافة الفاصلة بينهما. تتنافر الشحنات المتشابهة وتتجاذب الشحنات المختلفة، وتتجه خطوط المجال من الشحنة الموجبة إلى السالبة.',
+        applications: [
+          'قفص فاراداي (Faraday Cage): انعدام المجال الكهربائي داخل الموصلات المجوفة لحماية الطائرات والسيارات من الصواعق.',
+          'الطابعات الليزرية وماكينات التصوير: شحن الأسطوانة الكهروستاتيكية لجذب دقائق الحبر الأسود بدقة متناهية.',
+          'مرسبات الدخان الصناعية: شحن جزيئات السخام والرماد في مداخن المصانع لجذبها وتصفيتها قبل خروجها للجو.'
+        ],
+        fact: 'القوة الكهروستاتيكية بين إلكترون وبروتون أقوى من قوة الجاذبية بينهما بحوالي 10³⁹ مرة!'
+      },
+      scientificInfoEn: {
+        concept: 'Coulomb\'s Law & Electrostatic Field Properties',
+        explanation: 'The electrostatic force between two point charges is proportional to the product of charges and inversely proportional to distance squared. Like charges repel, opposite charges attract, and field lines emanate from positive toward negative.',
+        applications: [
+          'Faraday Cages: Zero electric field inside hollow conductors protects passengers in airplanes and cars from lightning strikes.',
+          'Laser Printers & Photocopiers: Static charge patterns attract toner powder to paper with microscopic precision.',
+          'Industrial Precipitators: Electrostatic charging of smokestack soot particles captures air pollutants.'
+        ],
+        fact: 'The electrostatic force between an electron and proton is approximately 10³⁹ times stronger than their mutual gravitational pull!'
+      },
       stepsAr: [
-        'اسحب الشحنة الموجبة أو السالبة في الفضاء لمشاهدة انحناء خطوط المجال الكهربائي في الوقت الفعلي.',
+        'اسحب الشحنات الموجبة والسالبة في الفضاء لمشاهدة انحناء خطوط المجال الكهربائي في الوقت الفعلي.',
         'فعل زر "إطلاق شحنة اختبارية" لمشاهدة مسار تسارعها بفعل محصلة القوى الكهروستاتيكية.'
       ],
       stepsEn: [
-        'Drag positive or negative charges around the canvas to see real-time dynamic electric field vectors.',
+        'Drag positive and negative charges around the canvas to see real-time dynamic electric field vectors.',
         'Click "Launch Test Charge" to observe its calculated trajectory driven by net Coulomb forces.'
       ],
-      tipAr: 'قيمة ثابت كولوم القياسي: $k_e = 8.99 \\times 10^9 \\; \\text{N}\\cdot\\text{m}^2/\\text{C}^2$.',
-      tipEn: 'Coulomb\'s constant: $k_e = 8.99 \\times 10^9 \\; \\text{N}\\cdot\\text{m}^2/\\text{C}^2$.'
+      tipAr: 'المجال الكهربائي عند أي نقطة هو القوة المؤثرة على وحدة الشحنات الموجبة الموضوعة عند تلك النقطة (E = F / q).',
+      tipEn: 'The electric field at any point represents the force per unit positive test charge placed there (E = F / q).'
     },
     optics_quantum: {
       stationId: 'optics_quantum',
-      num: '03',
-      titleAr: 'البصريات والظاهرة الكهروضوئية والكم',
-      titleEn: 'Optics & Photoelectric Effect',
-      shortAr: 'البصريات والكم',
+      num: '04',
+      titleAr: 'محاكي البصريات الهندسية والفيزياء الموجية والكم',
+      titleEn: 'Optics, Wave Physics & Quantum Simulator',
+      shortAr: 'البصريات والكم (4 محطات)',
       shortEn: 'Optics & Quantum',
-      icon: <Orbit className="w-4 h-4 text-amber-400" />,
-      goalAr: 'محاكاة تجربة أينشتاين للظاهرة الكهروضوئية، دالة الشغل للمعادن، جهد الإيقاف، وأطياف الانبعاث الذري للغازات.',
-      goalEn: 'Simulate Einstein\'s photoelectric effect, metal work functions, stopping potential, and atomic emission spectra.',
+      icon: <Orbit className="w-4 h-4 text-indigo-400" />,
+      goalAr: 'استكشاف شامل للعدسات المحدبة والمقعرة، انعكاس وانكسار الضوء وقانون سنيل، تشتت الضوء بالمنشور، والظاهرة الكهروضوئية وأطياف الانبعاث الذري.',
+      goalEn: 'Comprehensive exploration of convex/concave lenses, Snell\'s law refraction, prism dispersion, and photoelectric effect with atomic spectra.',
+      coreFormula: '1/f = 1/d_o + 1/d_i   |   n₁·sin θ₁ = n₂·sin θ₂   |   E = h·f = Φ + K_max',
+      scientificInfoAr: {
+        concept: 'البصريات الهندسية، الانكسار والمنشور، وتكميم طاقة الضوء',
+        explanation: 'تجمع المحطة بين البصريات الهندسية والضوئية والفيزياء الكمية: من انكسار الأشعة في العدسات المحدبة (المجمعة) والمقعرة (المفرقة) وتحديد صفات الصور، إلى قانون سنيل والانعكاس الكلي الداخلي عند الزاوية الحرجة (θ_c = arcsin n₂/n₁)، وتشتت الضوء الأبيض في المنشور الزجاجي إلى ألوان الطيف السبعة بفعل اختلاف معاملات انكسار الأطوال الموجية، وصولاً إلى ثورة الكم وتفسير أينشتاين لتحرير الإلكترونات بالفوتونات المنفصلة.',
+        applications: [
+          'العدسات الطبية والكاميرات والتلسكوبات الفلكية: تصحيح قصر وطول النظر وتركيب المجاهر الفائقة.',
+          'كابلات الألياف الضوئية (Fiber Optics): نقل الإنترنت فائق السرعة بالاعتماد على الانعكاس الكلي الداخلي بنسبة 100%.',
+          'المطيافية الضوئية والتحليل الطيفي: استخدام المناشير ومحززات الحيود لتحليل الغازات والنجوم البعيدة.',
+          'الخلايا الشمسية ومستشعرات الكاميرات (CMOS/CCD): تحويل فوتونات الضوء إلى طاقة كهربائية وصور رقمية.'
+        ],
+        fact: 'في عام 1666 استخدم إسحاق نيوتن منشورين زجاجيين ليثبت أن الضوء الأبيض ليس نقياً بل يتكون من جميع ألوان الطيف مجتمعة، بينما نال أينشتاين نوبل 1921 لتفسير الظاهرة الكهروضوئية!'
+      },
+      scientificInfoEn: {
+        concept: 'Geometrical Optics, Refraction, Prisms & Quantum Light',
+        explanation: 'Unifies classical ray optics, wave dispersion, and modern quantum physics: from convex/concave lens image formation and ray tracing, to Snell\'s law and Total Internal Reflection (TIR) at critical angles, prism chromatic dispersion of white light into the visible spectrum, and Einstein\'s photoelectric quantization.',
+        applications: [
+          'Ophthalmic Lenses & Telescopes: Vision correction (myopia/hyperopia) and high-power astronomical observatories.',
+          'Fiber Optics Telecommunications: High-speed internet backbone using 100% Total Internal Reflection.',
+          'Spectroscopy & Prism Analysis: Unraveling elemental chemical signatures in distant stars.',
+          'Photovoltaics & Digital Camera Sensors: Converting light quanta directly into electricity and digital pixels.'
+        ],
+        fact: 'Sir Isaac Newton used glass prisms in 1666 to prove white light contains all rainbow colors, while Albert Einstein won the 1921 Nobel Prize for unlocking the quantum photoelectric effect!'
+      },
       stepsAr: [
-        'اضبط طول موجة الضوء الساقط إلى النطاق فوق البنفسجي حتى تتجاوز طاقة الفوتون دالة شغل المهبط.',
-        'ارفع جهد الإيقاف العكسي حتى يتوقف انبعاث الإلكترونات الضوئية تماماً وقياس أقصى طاقة حركية.'
+        '01. العدسات: اختر عدسة محدبة أو مقعرة، واسحب الجسم (الشمعة أو السهم) لمراقبة مسارات الأشعة الثلاثة وتكون الصور الحقيقية والتقديرية وحساب التكبير.',
+        '02. الانكسار وقانون سنيل: حرّك زاوية مصدر الليزر وغيّر وسطي السقوط والانكسار (هواء، ماء، زيت، زجاج، ألماس) ولاحظ زاوية الانعكاس والانكسار وظهور الانعكاس الكلي الداخلي عند تجاوز الزاوية الحرجة.',
+        '03. المنشور الزجاجي: اسحب الكشاف الضوئي، واختبر تشتت الضوء الأبيض إلى ألوان الطيف السبعة أو مرر شعاع ليزر أحادي اللون، وقارن بين زجاج التاج وفلنت.',
+        '04. الكهروضوئية والكم ومطياف الانبعاث: اختر فلز المهبط واضبط الطول الموجي λ وجهد الإيقاف بالبطارية المعاكسة، أو تصفح أطياف التفريغ الكهربائي في المطياف الضوئي.',
       ],
       stepsEn: [
-        'Decrease wavelength to UV until photon energy exceeds the cathode metal work function.',
-        'Increase reverse stopping voltage until photoelectrons cease flowing to measure kinetic energy.'
+        '01. Lenses: Select convex or concave lens, drag the object candle/arrow to observe real-time 3-ray tracing, real/virtual images, and magnification.',
+        '02. Refraction & Snell\'s Law: Drag laser angle and test different media (air, water, oil, glass, diamond) to watch refraction and Total Internal Reflection at critical angle.',
+        '03. Glass Prism: Drag the flashlight, toggle between white light rainbow dispersion and monochromatic laser, comparing crown vs flint glass dispersion.',
+        '04. Photoelectric, Bohr & Spectrometer: Choose cathode metal and stopping voltage, or explore discharge gas emission lines in the integrated Optical Spectrometer.',
       ],
-      tipAr: 'انتقل إلى تبويب "طيف الانبعاث الذري" لاستكشاف خطوط بالمر للهيدروجين وأطياف الهيليوم والنيون والصوديوم.',
-      tipEn: 'Switch to the Atomic Spectra tab to explore Hydrogen Balmer lines and noble gas emission spectra.'
+      tipAr: 'يمكنك سحب مصدر الضوء والجسم مباشرة بالفأرة أو اللمس داخل أي محاكاة للتفاعل الفوري مع الأشعة والنتائج الحسابية!',
+      tipEn: 'You can drag light sources and objects directly with mouse or touch on canvas for instant ray-tracing and calculation updates!'
     }
   };
 
-  // Determine active guide item
+  // Determine active guide item based strictly on currentDomain
   const activeGuide =
-    guideDomain === 'chemistry'
+    currentDomain === 'chemistry'
       ? chemistryGuides[selectedGuideKey] || chemistryGuides['atom-builder']
-      : physicsGuides[selectedGuideKey] || physicsGuides['gas_fluid'];
+      : physicsGuides[selectedGuideKey] || physicsGuides['mechanics'] || physicsGuides['thermodynamics'] || physicsGuides['electromagnetism'] || physicsGuides['optics_quantum'];
 
   return (
     <>
@@ -384,11 +511,10 @@ export const FloatingQuickGuide: React.FC = () => {
           >
             <div className="relative">
               {currentDomain === 'physics' ? (
-                <Orbit className="w-5 h-5 text-amber-400 group-hover:rotate-45 transition-transform duration-300 animate-spin-slow" />
+                <Orbit className="w-5 h-5 text-amber-400 group-hover:rotate-45 transition-transform duration-300" />
               ) : (
                 <Sparkles className="w-5 h-5 text-cyan-400 group-hover:rotate-45 transition-transform duration-300" />
               )}
-              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
             </div>
             <div className="text-start">
               <span className="block text-xs font-bold leading-tight">
@@ -488,49 +614,28 @@ export const FloatingQuickGuide: React.FC = () => {
             </div>
           </div>
 
-          {/* Domain Segment Selector Inside Guide (Chemistry vs Physics) */}
-          <div className={`px-3 py-2 border-b flex items-center gap-2 ${
-            isDark ? 'bg-slate-950/40 border-slate-800/80' : 'bg-slate-100/70 border-slate-200'
+          {/* Domain Dedicated Isolated Header Banner (Chemistry Only OR Physics Only) */}
+          <div className={`px-4 py-2 border-b flex items-center justify-between gap-2 ${
+            currentDomain === 'chemistry'
+              ? isDark ? 'bg-cyan-950/40 border-cyan-800/40 text-cyan-300' : 'bg-cyan-50/80 border-cyan-200 text-cyan-800'
+              : isDark ? 'bg-purple-950/40 border-purple-800/40 text-purple-300' : 'bg-purple-50/80 border-purple-200 text-purple-800'
           }`}>
-            <button
-              type="button"
-              onClick={() => {
-                setGuideDomain('chemistry');
-                setSelectedGuideKey('atom-builder');
-                setCurrentDomain('chemistry');
-                setActiveTab('atom-builder');
-              }}
-              className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                guideDomain === 'chemistry'
-                  ? 'bg-cyan-600 text-white shadow-sm'
-                  : isDark
-                  ? 'bg-slate-800/60 text-slate-400 hover:text-slate-200'
-                  : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
-              }`}
-            >
-              <FlaskConical className="w-3.5 h-3.5" />
-              <span>{t('أقسام الكيمياء (5)', 'Chemistry (5)')}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setGuideDomain('physics');
-                setSelectedGuideKey('gas_fluid');
-                setCurrentDomain('physics');
-                setPhysicsStation('gas_fluid');
-              }}
-              className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                guideDomain === 'physics'
-                  ? 'bg-purple-600 text-white shadow-sm'
-                  : isDark
-                  ? 'bg-slate-800/60 text-slate-400 hover:text-slate-200'
-                  : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
-              }`}
-            >
-              <Orbit className="w-3.5 h-3.5" />
-              <span>{t('محطات الفيزياء (3)', 'Physics (3)')}</span>
-            </button>
+            <div className="flex items-center gap-2 font-bold text-xs">
+              {currentDomain === 'chemistry' ? (
+                <>
+                  <FlaskConical className="w-4 h-4 text-cyan-400" />
+                  <span>{t('دليل استخدام الكيمياء (5 أقسام)', 'Chemistry Lab Guide (5 Sections)')}</span>
+                </>
+              ) : (
+                <>
+                  <Orbit className="w-4 h-4 text-purple-400" />
+                  <span>{t('دليل استخدام الفيزياء (4 محطات وتجارب المنهج)', 'Physics Lab Guide (4 Simulators & Curriculum)')}</span>
+                </>
+              )}
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-current opacity-80">
+              {currentDomain === 'chemistry' ? t('كيمياء 3', 'Chem 3') : t('فيزياء حركية', 'Physics Engine')}
+            </span>
           </div>
 
           {/* Smoothly Scrollable Tab Bar with Arrow Navigation */}
@@ -583,7 +688,11 @@ export const FloatingQuickGuide: React.FC = () => {
                   })
                 : Object.keys(physicsGuides).map((key) => {
                     const item = physicsGuides[key];
-                    const isSelected = selectedGuideKey === key;
+                    const isSelected =
+                      selectedGuideKey === key ||
+                      (key === 'mechanics' && (physicsStation === 'mechanics' || physicsStation === 'gas_fluid')) ||
+                      (key === 'electromagnetism' && (physicsStation === 'electromagnetism' || physicsStation === 'electrostatics')) ||
+                      (key === 'optics_quantum' && physicsStation === 'optics_quantum');
                     return (
                       <button
                         key={key}
@@ -644,43 +753,147 @@ export const FloatingQuickGuide: React.FC = () => {
               </p>
             </div>
 
-            {/* Quick Steps */}
-            <div className="space-y-2">
-              <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
-                {t('خطوات سريعة للبدء فوراً:', 'Quick Steps to Start:')}
-              </span>
-              <div className="space-y-1.5">
-                {activeGuide.stepsAr.map((step, idx) => (
-                  <div
-                    key={idx}
-                    className={`p-2.5 rounded-xl border flex items-start gap-2.5 text-xs ${
-                      isDark ? 'bg-slate-800/30 border-slate-700/50' : 'bg-white border-slate-200'
-                    }`}
-                  >
-                    <div className="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
-                      {idx + 1}
-                    </div>
-                    <p className="text-slate-300 leading-relaxed">
-                      {isAr ? step : activeGuide.stepsEn[idx]}
+            {/* Mode Switcher for Physics */}
+            {guideDomain === 'physics' && (
+              <div className={`flex items-center gap-1 p-1 rounded-xl border text-[11px] font-bold ${
+                isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-100 border-slate-200'
+              }`}>
+                <button
+                  type="button"
+                  onClick={() => setPhysicsTabMode('info')}
+                  className={`flex-1 py-1 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                    physicsTabMode === 'info'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  <span>{t('معلومات وحقائق علمية', 'Scientific Facts & Info')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPhysicsTabMode('steps')}
+                  className={`flex-1 py-1 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                    physicsTabMode === 'steps'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>{t('خطوات المحاكي', 'Simulation Steps')}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Scientific Info Section for Physics */}
+            {guideDomain === 'physics' && physicsTabMode === 'info' ? (
+              <div className="space-y-2.5">
+                {/* Core Formula Card */}
+                {('coreFormula' in activeGuide) && (
+                  <div className={`p-3 rounded-2xl border text-center ${
+                    isDark ? 'bg-purple-950/30 border-purple-500/40 text-purple-300' : 'bg-purple-50 border-purple-200 text-purple-900'
+                  }`}>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      {t('القانون الرياضي الأساسي', 'Fundamental Formula')}
+                    </span>
+                    <span className="font-mono text-xs sm:text-sm font-black tracking-wide block">
+                      {(activeGuide as any).coreFormula}
+                    </span>
+                  </div>
+                )}
+
+                {/* Physics Concept & Deep Explanation */}
+                {('scientificInfoAr' in activeGuide) && (
+                  <div className={`p-3 rounded-2xl border space-y-1.5 text-xs ${
+                    isDark ? 'bg-slate-800/40 border-slate-700/60' : 'bg-slate-50 border-slate-200'
+                  }`}>
+                    <span className="font-bold text-amber-400 flex items-center gap-1.5 text-[11px]">
+                      <Info className="w-3.5 h-3.5" />
+                      <span>{isAr ? (activeGuide as any).scientificInfoAr.concept : (activeGuide as any).scientificInfoEn.concept}</span>
+                    </span>
+                    <p className="text-slate-300 leading-relaxed text-[11px]">
+                      {isAr ? (activeGuide as any).scientificInfoAr.explanation : (activeGuide as any).scientificInfoEn.explanation}
                     </p>
                   </div>
-                ))}
-              </div>
-            </div>
+                )}
 
-            {/* Pro Tip */}
-            <div
-              className={`p-3 rounded-2xl border flex items-start gap-2.5 ${
-                isDark ? 'bg-amber-950/20 border-amber-800/40 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-800'
-              }`}
-            >
-              <Lightbulb className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div className="text-xs leading-relaxed">
-                <span className="font-bold block mb-0.5">{t('نصيحة ذكية:', 'Pro Tip:')}</span>
-                <span>{isAr ? activeGuide.tipAr : activeGuide.tipEn}</span>
+                {/* Real-World Applications */}
+                {('scientificInfoAr' in activeGuide) && (
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-bold text-cyan-400 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                      {t('تطبيقات واقعية وهندسية:', 'Real-World & Engineering Uses:')}
+                    </span>
+                    <div className="space-y-1.5">
+                      {((isAr ? (activeGuide as any).scientificInfoAr.applications : (activeGuide as any).scientificInfoEn.applications) as string[]).map((app, idx) => (
+                        <div
+                          key={idx}
+                          className={`p-2 rounded-xl border flex items-start gap-2 text-[11px] ${
+                            isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'
+                          }`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0 mt-1.5" />
+                          <span className="text-slate-300 leading-relaxed">{app}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Did You Know Fact */}
+                {('scientificInfoAr' in activeGuide) && (
+                  <div className={`p-3 rounded-2xl border flex items-start gap-2.5 ${
+                    isDark ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  }`}>
+                    <Lightbulb className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div className="text-[11px] leading-relaxed">
+                      <span className="font-bold block mb-0.5">{t('هل تعلم؟', 'Did You Know?')}</span>
+                      <span>{isAr ? (activeGuide as any).scientificInfoAr.fact : (activeGuide as any).scientificInfoEn.fact}</span>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Quick Steps */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    {t('خطوات سريعة للبدء فوراً:', 'Quick Steps to Start:')}
+                  </span>
+                  <div className="space-y-1.5">
+                    {activeGuide.stepsAr.map((step, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-2.5 rounded-xl border flex items-start gap-2.5 text-xs ${
+                          isDark ? 'bg-slate-800/30 border-slate-700/50' : 'bg-white border-slate-200'
+                        }`}
+                      >
+                        <div className="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                          {idx + 1}
+                        </div>
+                        <p className="text-slate-300 leading-relaxed">
+                          {isAr ? step : activeGuide.stepsEn[idx]}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pro Tip */}
+                <div
+                  className={`p-3 rounded-2xl border flex items-start gap-2.5 ${
+                    isDark ? 'bg-amber-950/20 border-amber-800/40 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-800'
+                  }`}
+                >
+                  <Lightbulb className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs leading-relaxed">
+                    <span className="font-bold block mb-0.5">{t('نصيحة ذكية:', 'Pro Tip:')}</span>
+                    <span>{isAr ? activeGuide.tipAr : activeGuide.tipEn}</span>
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Quick Action Shortcuts */}
             <div className="pt-1 flex items-center gap-2">

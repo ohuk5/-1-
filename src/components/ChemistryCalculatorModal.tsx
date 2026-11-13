@@ -83,6 +83,48 @@ export const ChemistryCalculatorModal: React.FC<ChemistryCalculatorModalProps> =
   const [molesSolute, setMolesSolute] = useState<string>('0.5');
   const [volumeLiters, setVolumeLiters] = useState<string>('1.0');
 
+  // 7. Nernst Equation State
+  const [nernstE0, setNernstE0] = useState<number>(1.10);
+  const [nernstN, setNernstN] = useState<number>(2);
+  const [nernstTempK, setNernstTempK] = useState<number>(298.15);
+  const [nernstQ, setNernstQ] = useState<number>(0.1);
+
+  // 8. Faraday Electrolysis State
+  const [faradayCurrentA, setFaradayCurrentA] = useState<number>(5.0);
+  const [faradayTimeMin, setFaradayTimeMin] = useState<number>(30);
+  const [faradayMolarMass, setFaradayMolarMass] = useState<number>(63.546);
+  const [faradayN, setFaradayN] = useState<number>(2);
+
+  // 9. Chemical Equilibrium Keq / Kp / Q State
+  const [eqProdConc, setEqProdConc] = useState<number>(1.8);
+  const [eqReactConc, setEqReactConc] = useState<number>(0.5);
+  const [eqKeqRef, setEqKeqRef] = useState<number>(4.5);
+  const [eqDeltaN, setEqDeltaN] = useState<number>(-2);
+  const [eqTempK, setEqTempK] = useState<number>(298.15);
+
+  // 10. Rate Law State
+  const [rateK, setRateK] = useState<number>(0.15);
+  const [rateConcA, setRateConcA] = useState<number>(0.8);
+  const [rateOrderA, setRateOrderA] = useState<number>(2);
+  const [rateConcB, setRateConcB] = useState<number>(0.5);
+  const [rateOrderB, setRateOrderB] = useState<number>(1);
+
+  // 11. Stoichiometry & Limiting Reactant State
+  const [stoichMassA, setStoichMassA] = useState<number>(10);
+  const [stoichMolarA, setStoichMolarA] = useState<number>(2.016);
+  const [stoichCoeffA, setStoichCoeffA] = useState<number>(2);
+  const [stoichMassB, setStoichMassB] = useState<number>(32);
+  const [stoichMolarB, setStoichMolarB] = useState<number>(32.0);
+  const [stoichCoeffB, setStoichCoeffB] = useState<number>(1);
+  const [stoichMolarP, setStoichMolarP] = useState<number>(18.015);
+  const [stoichCoeffP, setStoichCoeffP] = useState<number>(2);
+  const [stoichActualMass, setStoichActualMass] = useState<number>(32);
+
+  // 12. Radioactive Half-Life State
+  const [hlN0, setHlN0] = useState<number>(100);
+  const [hlTime, setHlTime] = useState<number>(24);
+  const [hlPeriod, setHlPeriod] = useState<number>(8);
+
   // ==========================================
   // --- PHYSICS STATE (7-12) ---
   // ==========================================
@@ -197,6 +239,68 @@ export const ChemistryCalculatorModal: React.FC<ChemistryCalculatorModalProps> =
     return { molarity };
   };
 
+  const calculateNernst = () => {
+    const R = 8.31446;
+    const F = 96485.33;
+    const nSafe = Math.max(1, nernstN);
+    const qSafe = Math.max(1e-6, nernstQ);
+    const eCell = nernstE0 - ((R * nernstTempK) / (nSafe * F)) * Math.log(qSafe);
+    const deltaGKJ = (-nSafe * F * eCell) / 1000;
+    return { eCell, deltaGKJ, isSpontaneous: eCell > 0 };
+  };
+
+  const calculateFaraday = () => {
+    const F = 96485.33;
+    const chargeC = faradayCurrentA * faradayTimeMin * 60;
+    const molesE = chargeC / F;
+    const molesMetal = molesE / Math.max(1, faradayN);
+    const massG = molesMetal * faradayMolarMass;
+    return { chargeC, molesE, molesMetal, massG };
+  };
+
+  const calculateEquilibrium = () => {
+    const qVal = (eqProdConc * eqProdConc) / Math.max(1e-4, eqReactConc);
+    const kp = eqKeqRef * Math.pow(0.08206 * eqTempK, eqDeltaN);
+    let directionAr = 'النظام في حالة اتزان (Q = Keq)';
+    let directionEn = 'At Equilibrium (Q = Keq)';
+    if (qVal < eqKeqRef * 0.98) {
+      directionAr = 'ينزاح للأمام نحو النواتج (Q < Keq)';
+      directionEn = 'Shifts Forward toward Products (Q < Keq)';
+    } else if (qVal > eqKeqRef * 1.02) {
+      directionAr = 'ينزاح عكسياً نحو المتفاعلات (Q > Keq)';
+      directionEn = 'Shifts Reverse toward Reactants (Q > Keq)';
+    }
+    return { qVal, kp, directionAr, directionEn };
+  };
+
+  const calculateRateLaw = () => {
+    const rate = rateK * Math.pow(Math.max(0, rateConcA), rateOrderA) * Math.pow(Math.max(0, rateConcB), rateOrderB);
+    const overallOrder = rateOrderA + rateOrderB;
+    return { rate, overallOrder };
+  };
+
+  const calculateStoichiometry = () => {
+    const nA = stoichMassA / Math.max(0.01, stoichMolarA);
+    const nB = stoichMassB / Math.max(0.01, stoichMolarB);
+    const rxnExtentA = nA / Math.max(1, stoichCoeffA);
+    const rxnExtentB = nB / Math.max(1, stoichCoeffB);
+    const limiting = rxnExtentA <= rxnExtentB ? 'A' : 'B';
+    const extent = Math.min(rxnExtentA, rxnExtentB);
+    const prodMoles = extent * stoichCoeffP;
+    const theoreticalMass = prodMoles * stoichMolarP;
+    const percentYield = theoreticalMass > 0 ? (stoichActualMass / theoreticalMass) * 100 : 0;
+    const excessMoles =
+      limiting === 'A' ? nB - extent * stoichCoeffB : nA - extent * stoichCoeffA;
+    return { nA, nB, limiting, prodMoles, theoreticalMass, percentYield, excessMoles };
+  };
+
+  const calculateHalfLife = () => {
+    const cycles = hlPeriod > 0 ? hlTime / hlPeriod : 0;
+    const remaining = hlN0 * Math.pow(0.5, cycles);
+    const decayed = Math.max(0, hlN0 - remaining);
+    return { cycles, remaining, decayed };
+  };
+
   // --- Physics Calculations ---
   const calculateGasResult = () => {
     if (gasTarget === 'P') return { val: (gasN * R_GAS * gasT) / (gasV || 1), unit: 'atm' };
@@ -251,6 +355,12 @@ export const ChemistryCalculatorModal: React.FC<ChemistryCalculatorModalProps> =
   const dilRes = calculateDilution();
   const collRes = calculateColligative();
   const molRes = calculateMolarity();
+  const nernstRes = calculateNernst();
+  const faradayRes = calculateFaraday();
+  const eqRes = calculateEquilibrium();
+  const rateRes = calculateRateLaw();
+  const stoichRes = calculateStoichiometry();
+  const hlRes = calculateHalfLife();
 
   const gasRes = calculateGasResult();
   const coulombRes = calculateCoulombResult();
@@ -262,7 +372,13 @@ export const ChemistryCalculatorModal: React.FC<ChemistryCalculatorModalProps> =
   // Tab Item Lists
   const chemTabs: { id: CalculatorTabType; labelAr: string; labelEn: string; icon: React.ReactNode }[] = [
     { id: 'ph', labelAr: 'الرقم الهيدروجيني pH', labelEn: 'pH & pOH', icon: <Droplet className="w-4 h-4 text-cyan-400" /> },
-    { id: 'cell_potential', labelAr: 'جهد الخلية الجلفانية', labelEn: 'Cell Potential E°', icon: <Zap className="w-4 h-4 text-amber-400" /> },
+    { id: 'cell_potential', labelAr: 'جهد الخلية القياسي', labelEn: 'Cell Potential E°', icon: <Zap className="w-4 h-4 text-amber-400" /> },
+    { id: 'nernst', labelAr: 'معادلة نرنست (E_cell)', labelEn: 'Nernst Equation', icon: <Zap className="w-4 h-4 text-emerald-400" /> },
+    { id: 'faraday', labelAr: 'التحليل الكهربائي (فاراداي)', labelEn: "Faraday's Law", icon: <FlaskConical className="w-4 h-4 text-orange-400" /> },
+    { id: 'equilibrium', labelAr: 'الاتزان الكيميائي Keq / Q', labelEn: 'Equilibrium Keq/Kp', icon: <Scale className="w-4 h-4 text-teal-400" /> },
+    { id: 'rate_law', labelAr: 'قانون سرعة التفاعل', labelEn: 'Reaction Rate Law', icon: <TrendingUp className="w-4 h-4 text-indigo-400" /> },
+    { id: 'stoichiometry', labelAr: 'الحسابات والمادة المحددة', labelEn: 'Stoichiometry & Yield', icon: <Sparkles className="w-4 h-4 text-emerald-400" /> },
+    { id: 'half_life', labelAr: 'عمر النصف النووي N(t)', labelEn: 'Nuclear Half-Life', icon: <Orbit className="w-4 h-4 text-rose-400" /> },
     { id: 'henry', labelAr: 'قانون هنري للغازات', labelEn: "Henry's Law", icon: <Wind className="w-4 h-4 text-purple-400" /> },
     { id: 'dilution', labelAr: 'معادلة التخفيف', labelEn: 'Dilution (M1V1=M2V2)', icon: <FlaskConical className="w-4 h-4 text-rose-400" /> },
     { id: 'colligative', labelAr: 'الخواص الجامعة للمحاليل', labelEn: 'Colligative Properties', icon: <Scale className="w-4 h-4 text-emerald-400" /> },
@@ -338,7 +454,7 @@ export const ChemistryCalculatorModal: React.FC<ChemistryCalculatorModalProps> =
             }`}
           >
             <FlaskConical className="w-4 h-4 text-cyan-300" />
-            <span>{t('🧪 قوانين الكيمياء (6 قوانين)', '🧪 Chemistry Laws (6 Formulas)')}</span>
+            <span>{t('قوانين الكيمياء (12 قانوناً)', 'Chemistry Laws (12 Formulas)')}</span>
           </button>
 
           <button
@@ -664,6 +780,314 @@ export const ChemistryCalculatorModal: React.FC<ChemistryCalculatorModalProps> =
                 </div>
                 <p className="text-xs text-slate-400 leading-relaxed">
                   عدد مولات المذاب الذائبة في لتر واحد من المحلول (mol/L).
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* CHEMISTRY 7: Nernst Equation */}
+          {/* ============================================================== */}
+          {activeDomain === 'chemistry' && activeTab === 'nernst' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">{t('الجهد القياسي E°cell (V):', 'Standard Potential E°cell (V):')}</label>
+                  <input type="number" step="0.01" value={nernstE0} onChange={e => setNernstE0(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">{t('الإلكترونات n:', 'Electrons n:')}</label>
+                    <input type="number" min="1" max="6" value={nernstN} onChange={e => setNernstN(parseInt(e.target.value, 10) || 1)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">{t('الحرارة T (K):', 'Temperature T (K):')}</label>
+                    <input type="number" step="1" value={nernstTempK} onChange={e => setNernstTempK(parseFloat(e.target.value) || 298.15)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">{t('حاصل التفاعل Q = [Ox] / [Red]:', 'Reaction Quotient Q:')}</label>
+                  <input type="number" step="0.01" min="0.0001" value={nernstQ} onChange={e => setNernstQ(Math.max(0.0001, parseFloat(e.target.value) || 0.0001))} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+              </div>
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-emerald-500/30' : 'bg-emerald-50/50 border-emerald-200'}`}>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 block mb-2">E_cell = E°_cell - (RT / nF) · ln(Q)</span>
+                  <div className="grid grid-cols-2 gap-3 font-mono py-2">
+                    <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">{t('الجهد الفعلي E_cell:', 'Actual E_cell:')}</span>
+                      <span className="text-2xl font-black text-emerald-400 tabular-nums">{nernstRes.eCell.toFixed(4)} V</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">ΔG = -nFE:</span>
+                      <span className="text-xl font-black text-cyan-400 tabular-nums">{nernstRes.deltaGKJ.toFixed(1)} kJ</span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  {nernstRes.isSpontaneous
+                    ? t('تفاعل تلقائي منتج للتيار (ΔG < 0 و E > 0).', 'Spontaneous voltaic cell reaction (ΔG < 0, E > 0).')
+                    : t('تفاعل غير تلقائي عند هذه التراكيز (E ≤ 0).', 'Non-spontaneous under these concentrations (E ≤ 0).')}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* CHEMISTRY 8: Faraday Electrolysis */}
+          {/* ============================================================== */}
+          {activeDomain === 'chemistry' && activeTab === 'faraday' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">{t('شدة التيار I (A):', 'Current I (A):')}</label>
+                    <input type="number" step="0.5" value={faradayCurrentA} onChange={e => setFaradayCurrentA(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">{t('الزمن t (دقيقة):', 'Time t (min):')}</label>
+                    <input type="number" step="1" value={faradayTimeMin} onChange={e => setFaradayTimeMin(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">{t('الكتلة المولية M (g/mol):', 'Molar Mass M:')}</label>
+                    <input type="number" step="0.1" value={faradayMolarMass} onChange={e => setFaradayMolarMass(parseFloat(e.target.value) || 1)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">{t('التكافؤ n (e⁻):', 'Valence n (e⁻):')}</label>
+                    <input type="number" min="1" max="4" value={faradayN} onChange={e => setFaradayN(parseInt(e.target.value, 10) || 1)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                </div>
+              </div>
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-orange-500/30' : 'bg-orange-50/50 border-orange-200'}`}>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 block mb-2">m = (I · t · M) / (n · F)</span>
+                  <div className="grid grid-cols-2 gap-3 font-mono py-2">
+                    <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">{t('الكتلة المترسبة m:', 'Deposited Mass m:')}</span>
+                      <span className="text-2xl font-black text-orange-400 tabular-nums">{faradayRes.massG.toFixed(3)} g</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">{t('الشحنة Q:', 'Charge Q:')}</span>
+                      <span className="text-xl font-black text-cyan-400 tabular-nums">{faradayRes.chargeC.toFixed(0)} C</span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 font-mono">
+                  {t('عدد المولات المترسبة:', 'Moles Deposited:')} {faradayRes.molesMetal.toFixed(4)} mol ({faradayRes.molesE.toFixed(4)} mol e⁻)
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* CHEMISTRY 9: Chemical Equilibrium */}
+          {/* ============================================================== */}
+          {activeDomain === 'chemistry' && activeTab === 'equilibrium' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">[Products] (M):</label>
+                    <input type="number" step="0.1" value={eqProdConc} onChange={e => setEqProdConc(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">[Reactants] (M):</label>
+                    <input type="number" step="0.1" value={eqReactConc} onChange={e => setEqReactConc(parseFloat(e.target.value) || 0.01)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">Keq (Kc):</label>
+                    <input type="number" step="0.1" value={eqKeqRef} onChange={e => setEqKeqRef(parseFloat(e.target.value) || 1)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">Δn_gas:</label>
+                    <input type="number" step="1" value={eqDeltaN} onChange={e => setEqDeltaN(parseInt(e.target.value, 10) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">T (K):</label>
+                    <input type="number" step="10" value={eqTempK} onChange={e => setEqTempK(parseFloat(e.target.value) || 298)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                </div>
+              </div>
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-teal-500/30' : 'bg-teal-50/50 border-teal-200'}`}>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 block mb-2">Q = [Products]² / [Reactants] | Kp = Kc(RT)^Δn</span>
+                  <div className="grid grid-cols-2 gap-3 font-mono py-2">
+                    <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">Q:</span>
+                      <span className="text-2xl font-black text-teal-400 tabular-nums">{eqRes.qVal.toFixed(3)}</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">Kp:</span>
+                      <span className="text-xl font-black text-cyan-400 tabular-nums">{eqRes.kp.toExponential(2)}</span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs font-bold text-teal-300">{t(eqRes.directionAr, eqRes.directionEn)}</p>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* CHEMISTRY 10: Rate Law */}
+          {/* ============================================================== */}
+          {activeDomain === 'chemistry' && activeTab === 'rate_law' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">{t('ثابت السرعة k:', 'Rate Constant k:')}</label>
+                  <input type="number" step="0.01" value={rateK} onChange={e => setRateK(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">[A] (M):</label>
+                    <input type="number" step="0.1" value={rateConcA} onChange={e => setRateConcA(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">{t('رتبة A (m):', 'Order m:')}</label>
+                    <input type="number" min="0" max="3" value={rateOrderA} onChange={e => setRateOrderA(parseInt(e.target.value, 10) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">[B] (M):</label>
+                    <input type="number" step="0.1" value={rateConcB} onChange={e => setRateConcB(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold block mb-1 text-slate-300">{t('رتبة B (n):', 'Order n:')}</label>
+                    <input type="number" min="0" max="3" value={rateOrderB} onChange={e => setRateOrderB(parseInt(e.target.value, 10) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                </div>
+              </div>
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-indigo-500/30' : 'bg-indigo-50/50 border-indigo-200'}`}>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 block mb-2">Rate = k · [A]^m · [B]^n</span>
+                  <div className="text-center font-mono py-4">
+                    <span className="text-xs text-slate-500 block mb-1">{t('سرعة التفاعل:', 'Reaction Rate:')}</span>
+                    <span className="text-3xl font-black text-indigo-400 tabular-nums">{rateRes.rate.toFixed(4)} M/s</span>
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs font-mono flex items-center justify-between">
+                  <span className="text-slate-400">{t('الرتبة الكلية للتفاعل:', 'Overall Order (m+n):')}</span>
+                  <span className="text-cyan-400 font-bold">{rateRes.overallOrder}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* CHEMISTRY 11: Stoichiometry & Limiting Reactant */}
+          {/* ============================================================== */}
+          {activeDomain === 'chemistry' && activeTab === 'stoichiometry' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-2.5 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[11px] font-bold block mb-1 text-slate-300">m(A) g</label>
+                    <input type="number" step="0.5" value={stoichMassA} onChange={e => setStoichMassA(parseFloat(e.target.value) || 0)} className={`w-full p-2 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold block mb-1 text-slate-300">M(A) g/mol</label>
+                    <input type="number" step="0.1" value={stoichMolarA} onChange={e => setStoichMolarA(parseFloat(e.target.value) || 1)} className={`w-full p-2 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold block mb-1 text-slate-300">coeff(A)</label>
+                    <input type="number" min="1" value={stoichCoeffA} onChange={e => setStoichCoeffA(parseInt(e.target.value, 10) || 1)} className={`w-full p-2 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[11px] font-bold block mb-1 text-slate-300">m(B) g</label>
+                    <input type="number" step="0.5" value={stoichMassB} onChange={e => setStoichMassB(parseFloat(e.target.value) || 0)} className={`w-full p-2 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold block mb-1 text-slate-300">M(B) g/mol</label>
+                    <input type="number" step="0.1" value={stoichMolarB} onChange={e => setStoichMolarB(parseFloat(e.target.value) || 1)} className={`w-full p-2 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold block mb-1 text-slate-300">coeff(B)</label>
+                    <input type="number" min="1" value={stoichCoeffB} onChange={e => setStoichCoeffB(parseInt(e.target.value, 10) || 1)} className={`w-full p-2 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[11px] font-bold block mb-1 text-slate-300">M(Prod)</label>
+                    <input type="number" step="0.1" value={stoichMolarP} onChange={e => setStoichMolarP(parseFloat(e.target.value) || 1)} className={`w-full p-2 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold block mb-1 text-slate-300">coeff(P)</label>
+                    <input type="number" min="1" value={stoichCoeffP} onChange={e => setStoichCoeffP(parseInt(e.target.value, 10) || 1)} className={`w-full p-2 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold block mb-1 text-slate-300">{t('الفعلي g:', 'Actual g:')}</label>
+                    <input type="number" step="0.5" value={stoichActualMass} onChange={e => setStoichActualMass(parseFloat(e.target.value) || 0)} className={`w-full p-2 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                  </div>
+                </div>
+              </div>
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-emerald-500/30' : 'bg-emerald-50/50 border-emerald-200'}`}>
+                <div className="grid grid-cols-2 gap-2.5 font-mono">
+                  <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">{t('المادة المحددة:', 'Limiting Reactant:')}</span>
+                    <span className="text-xl font-black text-amber-400">{stoichRes.limiting === 'A' ? t('المادة A', 'Reactant A') : t('المادة B', 'Reactant B')}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">{t('المردود النظري:', 'Theoretical Yield:')}</span>
+                    <span className="text-xl font-black text-emerald-400 tabular-nums">{stoichRes.theoreticalMass.toFixed(2)} g</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">{t('نسبة المردود %:', '% Yield:')}</span>
+                    <span className="text-lg font-black text-cyan-400 tabular-nums">{stoichRes.percentYield.toFixed(1)}%</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">{t('الفائض المتبقي:', 'Excess Left:')}</span>
+                    <span className="text-lg font-black text-slate-200 tabular-nums">{stoichRes.excessMoles.toFixed(3)} mol</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 font-mono">
+                  n(A) = {stoichRes.nA.toFixed(3)} mol | n(B) = {stoichRes.nB.toFixed(3)} mol → n(P) = {stoichRes.prodMoles.toFixed(3)} mol
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* CHEMISTRY 12: Radioactive Half-Life */}
+          {/* ============================================================== */}
+          {activeDomain === 'chemistry' && activeTab === 'half_life' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">{t('الكمية الابتدائية N₀ (g أو نواة):', 'Initial Quantity N₀:')}</label>
+                  <input type="number" step="1" value={hlN0} onChange={e => setHlN0(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">{t('الزمن الكلي المنقضي t:', 'Elapsed Time t:')}</label>
+                  <input type="number" step="0.5" value={hlTime} onChange={e => setHlTime(parseFloat(e.target.value) || 0)} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-slate-300">{t('فترة عمر النصف T₁/₂:', 'Half-Life T₁/₂:')}</label>
+                  <input type="number" step="0.5" min="0.01" value={hlPeriod} onChange={e => setHlPeriod(Math.max(0.01, parseFloat(e.target.value) || 1))} className={`w-full p-2.5 rounded-xl border text-xs font-mono font-bold ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`} />
+                </div>
+              </div>
+              <div className={`p-5 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-950/80 border-rose-500/30' : 'bg-rose-50/50 border-rose-200'}`}>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 block mb-2">N(t) = N₀ · (1/2)^(t / T₁/₂)</span>
+                  <div className="grid grid-cols-2 gap-3 font-mono py-2">
+                    <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">{t('المتبقي N(t):', 'Remaining N(t):')}</span>
+                      <span className="text-2xl font-black text-emerald-400 tabular-nums">{hlRes.remaining.toFixed(3)}</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">{t('المضمحل:', 'Decayed:')}</span>
+                      <span className="text-xl font-black text-rose-400 tabular-nums">{hlRes.decayed.toFixed(3)}</span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 font-mono">
+                  {t('عدد فترات عمر النصف:', 'Half-Life Cycles (n):')} {hlRes.cycles.toFixed(2)}
                 </p>
               </div>
             </div>

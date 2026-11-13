@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { setGlobalSoundEnabled, playLabSound } from '../utils/soundEffects';
 
 export type AppLanguage = 'ar' | 'en';
@@ -13,17 +13,29 @@ export type ActiveTabType =
 export type ApparatusStationType =
   | 'main_workbench'
   | 'burette_titration'
+  | 'electrochemistry_cell'
   | 'pneumatic_gas'
   | 'digital_scale'
   | 'cylinder_pipette'
-  | 'test_tube_rack'
-  | 'spectrometer_discharge';
+  | 'test_tube_rack';
 
 export type AppDomain = 'chemistry' | 'physics';
-export type PhysicsStationId = 'gas_fluid' | 'electrostatics' | 'optics_quantum';
+export type PhysicsStationId =
+  | 'mechanics'
+  | 'thermodynamics'
+  | 'electromagnetism'
+  | 'gas_fluid'
+  | 'electrostatics'
+  | 'optics_quantum';
 export type CalculatorTabType =
   | 'ph'
   | 'cell_potential'
+  | 'nernst'
+  | 'faraday'
+  | 'equilibrium'
+  | 'rate_law'
+  | 'stoichiometry'
+  | 'half_life'
   | 'henry'
   | 'dilution'
   | 'colligative'
@@ -268,7 +280,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [lang, theme]);
 
-  const t = (ar: string, en: string) => (lang === 'ar' ? ar : en);
+  const t = useCallback((ar: string, en: string) => (lang === 'ar' ? ar : en), [lang]);
 
   const launchLabExperiment = (tab: ActiveTabType, config: LabExperimentTrigger) => {
     setActiveLabPreset(config);

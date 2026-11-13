@@ -1,144 +1,259 @@
-import React from 'react';
-import { Wind, Zap, Orbit } from 'lucide-react';
+import React, { useState } from 'react';
+import { Wind, Zap, Orbit, Flame, BookOpen, Layers, Box, RotateCw } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { GasThermodynamicsSim } from './GasThermodynamicsSim';
 import { ElectrostaticsSim } from './ElectrostaticsSim';
 import { OpticsQuantumSim } from './OpticsQuantumSim';
-import { ScrollableRibbon } from '../ScrollableRibbon';
+import { CurriculumExperimentsModal } from './CurriculumExperimentsModal';
 import { playLabSound } from '../../utils/soundEffects';
+import { ThreePhysicsStage } from './three/ThreePhysicsStage';
+import { InteractiveLawFlipCards } from '../InteractiveLawFlipCards';
 
 interface PhysicsLabProps {
   onOpenGuide?: () => void;
 }
 
-export const PhysicsLab: React.FC<PhysicsLabProps> = ({ onOpenGuide }) => {
+export const PhysicsLab: React.FC<PhysicsLabProps> = () => {
   const { lang, theme, t, physicsStation, setPhysicsStation, openCalculator } = useApp();
   const isDark = theme === 'dark';
   const isAr = lang === 'ar';
+  const [isCurriculumModalOpen, setIsCurriculumModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'2d' | '3d' | 'cards'>('3d');
 
   const activeStation = physicsStation;
   const setActiveStation = setPhysicsStation;
 
   const stations = [
     {
-      id: 'gas_fluid' as const,
+      id: 'mechanics' as const,
       num: '01',
-      titleAr: 'قوانين الغازات والموائع والطفو',
-      titleEn: 'Gas Laws & Fluid Mechanics',
-      shortAr: 'الغازات والموائع',
-      shortEn: 'Gas & Fluids',
-      descAr: 'المكبس التفاعلي، التصادمات المرنة، وعلاقات P-V-T وقاعدة أرخميدس',
-      descEn: 'Interactive piston, elastic collisions, and Archimedes buoyancy',
-      icon: <Wind className="w-4 h-4 text-cyan-400" />
+      shortAr: 'محاكي الميكانيكا والموائع',
+      shortEn: 'Mechanics & Fluids',
+      icon: <Wind className="w-4 h-4 text-cyan-500" />
     },
     {
-      id: 'electrostatics' as const,
+      id: 'thermodynamics' as const,
       num: '02',
-      titleAr: 'الكهرباء الساكنة وحقول كولوم',
-      titleEn: 'Electrostatics & Coulomb Fields',
-      shortAr: 'الكهرباء الساكنة',
-      shortEn: 'Electrostatics',
-      descAr: 'خطوط المجال الكهربائي، قوى كولوم، وإطلاق الشحنات الاختبارية',
-      descEn: 'Field vectors, Coulomb forces, and test particle dynamics',
-      icon: <Zap className="w-4 h-4 text-purple-400" />
+      shortAr: 'الديناميكا الحرارية والغازات',
+      shortEn: 'Thermodynamics & Gases',
+      icon: <Flame className="w-4 h-4 text-amber-500" />
+    },
+    {
+      id: 'electromagnetism' as const,
+      num: '03',
+      shortAr: 'الكهرومغناطيسية وكولوم',
+      shortEn: 'Electromagnetism',
+      icon: <Zap className="w-4 h-4 text-indigo-500" />
     },
     {
       id: 'optics_quantum' as const,
-      num: '03',
-      titleAr: 'البصريات والظاهرة الكهروضوئية',
-      titleEn: 'Optics & Photoelectric Effect',
-      shortAr: 'البصريات والكم',
+      num: '04',
+      shortAr: 'البصريات والظاهرة الكهروضوئية',
       shortEn: 'Optics & Quantum',
-      descAr: 'انبعاث الإلكترونات الضوئية، جهد الإيقاف، وأطياف الانبعاث الذري',
-      descEn: 'Photoelectron emission, stopping potential, and atomic spectra',
-      icon: <Orbit className="w-4 h-4 text-amber-400" />
+      icon: <Orbit className="w-4 h-4 text-violet-500" />
     }
   ];
 
+  const activeStationObj =
+    stations.find(
+      (st) =>
+        st.id === activeStation ||
+        (st.id === 'mechanics' && activeStation === 'gas_fluid') ||
+        (st.id === 'electromagnetism' && activeStation === 'electrostatics')
+    ) || stations[0];
+
   return (
-    <div className="w-full flex flex-col gap-6 animate-fadeIn pb-12">
-      {/* Physics Lab Hero Header Banner */}
-      <div className={`rounded-3xl border p-5 sm:p-7 relative overflow-hidden transition-all shadow-sm ${
-        isDark
-          ? 'bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-950 border-slate-800'
-          : 'bg-gradient-to-r from-purple-50/60 via-white to-amber-50/50 border-slate-200'
-      }`}>
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-          <div className="flex items-start gap-3 sm:gap-4">
-            <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-tr from-purple-500/20 to-amber-500/20 border border-purple-500/30 text-amber-400 shrink-0 shadow-inner">
-              <Orbit className="w-7 h-7 sm:w-8 sm:h-8 animate-spin-slow" />
+    <div className="w-full min-w-0 flex flex-col gap-5 pb-12" dir={isAr ? 'rtl' : 'ltr'}>
+      {/* Physics Lab Header Card (60-30-10 Dual-Theme Discipline) */}
+      <div
+        className={`rounded-2xl border p-4 sm:p-6 transition-colors ${
+          isDark
+            ? 'bg-slate-900 border-slate-800 text-slate-100'
+            : 'bg-white border-slate-200 text-slate-900 shadow-sm'
+        }`}
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5 min-w-0">
+            <div
+              className={`p-3 rounded-xl border shrink-0 ${
+                isDark
+                  ? 'bg-indigo-950/60 border-indigo-500/30 text-indigo-400'
+                  : 'bg-indigo-50 border-indigo-200 text-indigo-600'
+              }`}
+            >
+              <Orbit className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-100 dark:text-white">
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-balance">
                   {t('مختبر الفيزياء التفاعلي الشامل', 'Comprehensive Interactive Physics Lab')}
                 </h1>
-                <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/30 text-purple-400">
-                  Physics Engine
+                <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  · {t('مناهج الفيزياء 1، 2، 3-1، 3-2', 'Physics 1, 2, 3-1 & 3-2')}
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
-                {t('محاكاة حركية دقيقة لقوانين الغازات والديناميكا الحرارية، تصادم الجسيمات وقوى الطفو لأرخميدس، الكهرومغناطيسية وحقول كولوم، والبصريات والظاهرة الكهروضوئية.',
-                   'Rigorous simulations of gas kinetics, thermodynamics, Archimedes buoyancy, electrostatics, Coulomb fields, and quantum photoelectric effect.')}
+              <p className={`text-xs sm:text-sm max-w-2xl leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                {t(
+                  '4 محاكيات فيزيائية تفاعلية (2D و 3D) مع مطياف الانبعاث والتفريغ وبطاقات القوانين القلابة والتجارب العملية.',
+                  '4 interactive physics simulators (2D & 3D) with discharge spectrometer, flipping law flashcards, and worked textbook examples.'
+                )}
               </p>
+              {/* Clean Quiet Physical Constants Line */}
+              <div
+                dir="ltr"
+                className={`text-[11px] font-mono tabular-nums pt-1 flex flex-wrap items-center gap-2 ${
+                  isDark ? 'text-slate-400' : 'text-slate-500'
+                }`}
+              >
+                <span>g = 9.8 m/s²</span>
+                <span aria-hidden="true">·</span>
+                <span>k = 8.99×10⁹</span>
+                <span aria-hidden="true">·</span>
+                <span>R = 0.0821</span>
+                <span aria-hidden="true">·</span>
+                <span>h = 6.63×10⁻³⁴ J·s</span>
+              </div>
             </div>
           </div>
 
-          {/* Physical Constants Pill */}
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <div className={`px-3 py-2 rounded-xl border flex items-center gap-2 text-xs font-mono ${
-              isDark ? 'bg-slate-950/70 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
-            }`}>
-              <span className="text-slate-500">g:</span>
-              <span className="text-cyan-400 font-bold">9.8 m/s²</span>
-              <span className="text-slate-600">|</span>
-              <span className="text-slate-500">ke:</span>
-              <span className="text-purple-400 font-bold">8.99×10⁹</span>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsCurriculumModalOpen(true);
+              playLabSound('click');
+            }}
+            className="px-4 py-2.5 min-h-[40px] rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 whitespace-nowrap transition-colors shrink-0 self-start lg:self-auto"
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>{t('دليل التجارب (14)', 'Lab Manual (14)')}</span>
+          </button>
         </div>
       </div>
 
-      {/* Physics Stations Compact Pill Switcher with ScrollableRibbon Arrows */}
-      <ScrollableRibbon
-        containerClassName="justify-center"
-        className="justify-start sm:justify-center gap-2"
-        scrollAmount={180}
-        alwaysShowArrows={true}
+      {/* Sticky 2D / 3D / Law Cards Switcher Bar (Always accessible even when scrolled in 2D) */}
+      <div
+        className={`sticky top-[142px] md:top-[144px] lg:top-[108px] z-30 rounded-2xl border px-3 sm:px-4 py-2.5 backdrop-blur-md transition-colors flex flex-wrap items-center justify-between gap-2.5 ${
+          isDark
+            ? 'bg-slate-900/95 border-slate-800 shadow-lg shadow-slate-950/50'
+            : 'bg-white/95 border-slate-200 shadow-sm'
+        }`}
       >
-        {stations.map(st => {
-          const isActive = activeStation === st.id;
-          return (
-            <button
-              key={st.id}
-              onClick={() => {
-                setActiveStation(st.id);
-                playLabSound('click');
-              }}
-              className={`px-4 py-2.5 rounded-2xl border transition-all flex items-center gap-2.5 text-xs sm:text-sm font-bold whitespace-nowrap shrink-0 mx-0.5 ${
-                isActive
-                  ? isDark
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-400 text-white shadow-md ring-1 ring-purple-400/50'
-                    : 'bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-500 text-white shadow-md'
-                  : isDark
-                  ? 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
-                  : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <span>{st.icon}</span>
-              <span className="font-mono text-xs opacity-70">{st.num}.</span>
-              <span>{isAr ? st.shortAr : st.shortEn}</span>
-            </button>
-          );
-        })}
-      </ScrollableRibbon>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="shrink-0">{activeStationObj.icon}</span>
+          <span className={`text-xs sm:text-sm font-bold truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+            {viewMode === 'cards'
+              ? t('بطاقات القوانين الفيزيائية والأمثلة', 'Physics Law Cards & Examples')
+              : `${activeStationObj.num}. ${isAr ? activeStationObj.shortAr : activeStationObj.shortEn}`}
+          </span>
+        </div>
 
-      {/* Main Active Simulation Stage */}
-      <div className="w-full">
-        {activeStation === 'gas_fluid' && <GasThermodynamicsSim />}
-        {activeStation === 'electrostatics' && <ElectrostaticsSim />}
-        {activeStation === 'optics_quantum' && <OpticsQuantumSim />}
+        <div
+          className={`p-1 rounded-xl border inline-flex items-center gap-1 flex-wrap ${
+            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setViewMode('3d');
+              playLabSound('click');
+            }}
+            className={`px-3 py-1.5 min-h-[36px] rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors ${
+              viewMode === '3d'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : isDark
+                ? 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                : 'text-slate-700 hover:text-slate-900 hover:bg-white'
+            }`}
+          >
+            <Box className="w-3.5 h-3.5" />
+            <span>{t('منصة 3D', '3D Studio')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setViewMode('2d');
+              playLabSound('click');
+            }}
+            className={`px-3 py-1.5 min-h-[36px] rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors ${
+              viewMode === '2d'
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : isDark
+                ? 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                : 'text-slate-700 hover:text-slate-900 hover:bg-white'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>{t('محاكي 2D', '2D Sim')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setViewMode('cards');
+              playLabSound('click');
+            }}
+            className={`px-3 py-1.5 min-h-[36px] rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors ${
+              viewMode === 'cards'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : isDark
+                ? 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                : 'text-slate-700 hover:text-slate-900 hover:bg-white'
+            }`}
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+            <span>{t('بطاقات القوانين', 'Law Cards')}</span>
+          </button>
+        </div>
       </div>
+
+      {/* Main Active Stage: 3D Studio, 2D Simulators, or Interactive Flipping Law Cards */}
+      <div className="w-full min-w-0">
+        {viewMode === 'cards' ? (
+          <InteractiveLawFlipCards
+            domainFilter="physics"
+            onLaunchPhysicsStation={(stationTarget) => {
+              setActiveStation(stationTarget);
+              setViewMode('3d');
+            }}
+            onOpenCalculatorTab={(calcTab) => openCalculator(calcTab)}
+          />
+        ) : viewMode === '3d' ? (
+          <ThreePhysicsStage
+            station={
+              activeStation === 'gas_fluid'
+                ? 'mechanics'
+                : activeStation === 'electrostatics'
+                ? 'electromagnetism'
+                : activeStation
+            }
+            onSwitchTo2D={() => setViewMode('2d')}
+          />
+        ) : (
+          <>
+            {(activeStation === 'mechanics' || activeStation === 'gas_fluid') && (
+              <GasThermodynamicsSim forcedMode="buoyancy" />
+            )}
+            {activeStation === 'thermodynamics' && (
+              <GasThermodynamicsSim forcedMode="gas" />
+            )}
+            {(activeStation === 'electromagnetism' || activeStation === 'electrostatics') && (
+              <ElectrostaticsSim />
+            )}
+            {activeStation === 'optics_quantum' && <OpticsQuantumSim />}
+          </>
+        )}
+      </div>
+
+      {/* Curriculum Experiments Modal */}
+      <CurriculumExperimentsModal
+        isOpen={isCurriculumModalOpen}
+        onClose={() => setIsCurriculumModalOpen(false)}
+        onNavigateToSimulator={(stationTarget) => {
+          setActiveStation(stationTarget);
+          if (viewMode === 'cards') setViewMode('3d');
+        }}
+      />
     </div>
   );
 };
+

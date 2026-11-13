@@ -34,14 +34,16 @@ interface ScientificSearchBarProps {
   isOpen: boolean;
   onOpen: () => void;
   onClose: () => void;
+  hideTrigger?: boolean;
 }
 
 export const ScientificSearchBar: React.FC<ScientificSearchBarProps> = ({
   isOpen,
   onOpen,
-  onClose
+  onClose,
+  hideTrigger = false
 }) => {
-  const { lang, theme, t, openCalculator, openCurriculum, setActiveTab } = useApp();
+  const { lang, theme, t, currentDomain, openCalculator, openCurriculum, setCurrentDomain, setPhysicsStation } = useApp();
   const isDark = theme === 'dark';
 
   const [query, setQuery] = useState('');
@@ -75,29 +77,29 @@ export const ScientificSearchBar: React.FC<ScientificSearchBarProps> = ({
 
   const quickSuggestions = [
     {
-      ar: 'أحدث استخدامات الجرافين في تخزين الطاقة',
-      en: 'Latest graphene applications in energy storage',
-      tag: 'مواد نانوية'
+      ar: 'قانون سنيل والزاوية الحرجة في الألياف البصرية',
+      en: "Snell's law and critical angle in optical fibers",
+      tag: t('فيزياء البصريات', 'Optics')
+    },
+    {
+      ar: 'الظاهرة الكهروضوئية وطاقة الفوتون ومطياف الهيدروجين',
+      en: 'Photoelectric effect, photon energy, and hydrogen spectrum',
+      tag: t('فيزياء الكم', 'Quantum')
     },
     {
       ar: 'درجة غليان الإيثانول الدقيقة وضغطه البخاري',
       en: 'Exact boiling point of ethanol and vapor pressure',
-      tag: 'خواص فيزيائية'
+      tag: t('خواص فيزيائية', 'Properties')
     },
     {
       ar: 'جهود الاختزال القياسية وأقوى المؤكسدات',
       en: 'Standard reduction potentials and strongest oxidizers',
-      tag: 'كيمياء كهربائية'
+      tag: t('كيمياء كهربائية', 'Electrochemistry')
     },
     {
-      ar: 'تفاعلات عنصر الليثيوم مع النيتروجين والماء',
-      en: 'Reactions of lithium with nitrogen and water',
-      tag: 'تفاعلات فلزية'
-    },
-    {
-      ar: 'خواص مادة الأيروسول وتطبيقاتها في العزل الفضائي',
-      en: 'Aerogel properties and aerospace insulation applications',
-      tag: 'تطبيقات متقدمة'
+      ar: 'أحدث استخدامات الجرافين في تخزين الطاقة',
+      en: 'Latest graphene applications in energy storage',
+      tag: t('مواد نانوية', 'Materials')
     }
   ];
 
@@ -148,35 +150,37 @@ export const ScientificSearchBar: React.FC<ScientificSearchBarProps> = ({
 
   return (
     <>
-      {/* Header Compact Trigger Button */}
-      <button
-        type="button"
-        onClick={onOpen}
-        className={`group flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${
-          isDark
-            ? 'bg-slate-900/90 border-slate-700 hover:border-cyan-500/60 text-slate-300 hover:text-white shadow-inner'
-            : 'bg-white border-slate-300 hover:border-cyan-500 text-slate-700 hover:text-slate-900 shadow-sm'
-        }`}
-        title={t('البحث العلمي الذكي المدعوم ببيانات Google (Ctrl+K)', 'Smart Scientific Search with Google data (Ctrl+K)')}
-      >
-        <div className="flex items-center gap-1.5 text-cyan-400">
-          <Search className="w-3.5 h-3.5" />
-          <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" />
-        </div>
-        <span className="hidden md:inline text-slate-400 group-hover:text-slate-300">
-          {t('بحث علمي مدعوم بـ Google...', 'Search science with Google...')}
-        </span>
-        <span className="md:hidden inline text-slate-400">
-          {t('بحث علمي', 'Search')}
-        </span>
-        <kbd
-          className={`hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono rounded border ${
-            isDark ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-500'
+      {/* Header Compact Trigger Button (optional when rendered externally for mobile/tablet) */}
+      {!hideTrigger && (
+        <button
+          type="button"
+          onClick={onOpen}
+          className={`group flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${
+            isDark
+              ? 'bg-slate-900/90 border-slate-700 hover:border-cyan-500/60 text-slate-300 hover:text-white shadow-inner'
+              : 'bg-white border-slate-300 hover:border-cyan-500 text-slate-700 hover:text-slate-900 shadow-sm'
           }`}
+          title={t('البحث العلمي الذكي المدعوم ببيانات Google (Ctrl+K)', 'Smart Scientific Search with Google data (Ctrl+K)')}
         >
-          ⌘K
-        </kbd>
-      </button>
+          <div className="flex items-center gap-1.5 text-cyan-500">
+            <Search className="w-3.5 h-3.5" />
+            <Sparkles className="w-3 h-3 text-amber-400" />
+          </div>
+          <span className={`hidden xl:inline ${isDark ? 'text-slate-400 group-hover:text-slate-200' : 'text-slate-600 group-hover:text-slate-900'}`}>
+            {t('بحث علمي...', 'Search science...')}
+          </span>
+          <span className={`xl:hidden inline ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            {t('بحث', 'Search')}
+          </span>
+          <kbd
+            className={`hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono rounded border ${
+              isDark ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-500'
+            }`}
+          >
+            ⌘K
+          </kbd>
+        </button>
+      )}
 
       {/* Search Modal Overlay */}
       {isOpen && (
@@ -289,8 +293,8 @@ export const ScientificSearchBar: React.FC<ScientificSearchBarProps> = ({
                       <button
                         key={idx}
                         type="button"
-                        onClick={() => handleSearch(item.ar)}
-                        className={`text-right p-2.5 rounded-xl border text-xs transition-all flex items-center gap-2 group ${
+                        onClick={() => handleSearch(t(item.ar, item.en))}
+                        className={`text-start p-2.5 rounded-xl border text-xs transition-all flex items-center gap-2 group ${
                           isDark
                             ? 'bg-slate-800/70 hover:bg-slate-800 border-slate-700/80 hover:border-cyan-500/50 text-slate-300'
                             : 'bg-slate-50 hover:bg-white border-slate-200 hover:border-cyan-500 text-slate-700 shadow-sm'
@@ -336,11 +340,11 @@ export const ScientificSearchBar: React.FC<ScientificSearchBarProps> = ({
                     <Sparkles className="w-6 h-6 text-amber-400 absolute inset-0 m-auto animate-pulse" />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm font-bold text-slate-200">
+                    <p className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                       {t('جاري استرجاع البيانات والتحقق من مصادر Google...', 'Retrieving data and verifying with Google...')}
                     </p>
-                    <p className="text-xs text-slate-400">
-                      {t('البحث عن أحدث المراجع العلمية والخواص الكيميائية المؤكدة', 'Scanning verified scientific references and chemical constants')}
+                    <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      {t('البحث عن أحدث المراجع العلمية والخواص الفيزيائية والكيميائية', 'Scanning verified scientific references and constants')}
                     </p>
                   </div>
                 </div>
@@ -407,7 +411,9 @@ export const ScientificSearchBar: React.FC<ScientificSearchBarProps> = ({
                       </button>
                     </div>
 
-                    <div className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap font-sans text-slate-200 select-text">
+                    <div className={`text-xs sm:text-sm leading-relaxed whitespace-pre-wrap font-sans select-text ${
+                      isDark ? 'text-slate-200' : 'text-slate-800'
+                    }`}>
                       {result.text}
                     </div>
                   </div>
@@ -461,9 +467,13 @@ export const ScientificSearchBar: React.FC<ScientificSearchBarProps> = ({
                         type="button"
                         onClick={() => {
                           onClose();
-                          openCalculator();
+                          openCalculator(currentDomain);
                         }}
-                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/15 border border-amber-500/40 text-amber-400 hover:bg-amber-500/25 transition-all flex items-center gap-1"
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 ${
+                          isDark
+                            ? 'bg-amber-500/15 border-amber-500/40 text-amber-400 hover:bg-amber-500/25'
+                            : 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
+                        }`}
                       >
                         <Calculator className="w-3 h-3" />
                         <span>{t('حاسبة القوانين', 'Calculator')}</span>
@@ -474,7 +484,11 @@ export const ScientificSearchBar: React.FC<ScientificSearchBarProps> = ({
                           onClose();
                           openCurriculum();
                         }}
-                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-cyan-500/15 border border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/25 transition-all flex items-center gap-1"
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 ${
+                          isDark
+                            ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/25'
+                            : 'bg-cyan-50 border-cyan-300 text-cyan-800 hover:bg-cyan-100'
+                        }`}
                       >
                         <BookOpen className="w-3 h-3" />
                         <span>{t('مرجع كيمياء 3', 'Chemistry 3 Book')}</span>
@@ -483,12 +497,17 @@ export const ScientificSearchBar: React.FC<ScientificSearchBarProps> = ({
                         type="button"
                         onClick={() => {
                           onClose();
-                          setActiveTab('experiments-lab');
+                          setCurrentDomain('physics');
+                          setPhysicsStation('optics_quantum');
                         }}
-                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 transition-all flex items-center gap-1"
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 ${
+                          isDark
+                            ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/25'
+                            : 'bg-indigo-50 border-indigo-300 text-indigo-800 hover:bg-indigo-100'
+                        }`}
                       >
                         <FlaskConical className="w-3 h-3" />
-                        <span>{t('معمل التجارب (14)', 'Lab (14 Experiments)')}</span>
+                        <span>{t('مختبر الفيزياء والبصريات', 'Physics & Optics Lab')}</span>
                       </button>
                     </div>
                   </div>

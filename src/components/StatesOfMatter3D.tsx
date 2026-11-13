@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   RotateCcw,
   ZoomIn,
@@ -11,6 +12,7 @@ import {
 import { SubstanceInfo, MatterPhase } from '../data/substancesData';
 import { useApp } from '../context/AppContext';
 import { playLabSound } from '../utils/soundEffects';
+import { StageViewportFrame } from './StageViewportFrame';
 
 export interface StatesOfMatter3DProps {
   substance: SubstanceInfo;
@@ -22,6 +24,7 @@ export interface StatesOfMatter3DProps {
   phaseName: string;
   particleCount?: number;
   burnerActive?: 'heat' | 'cool' | null;
+  magneticFieldActive?: boolean;
 }
 
 interface Particle3D {
@@ -53,9 +56,11 @@ export const StatesOfMatter3D: React.FC<StatesOfMatter3DProps> = ({
   phase,
   phaseName,
   particleCount = 45,
-  burnerActive = null
+  burnerActive = null,
+  magneticFieldActive = false
 }) => {
-  const { t } = useApp();
+  const { t, theme } = useApp();
+  const isDark = theme === 'dark';
   const containerRef = useRef<HTMLDivElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -65,9 +70,9 @@ export const StatesOfMatter3D: React.FC<StatesOfMatter3DProps> = ({
   const prevMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const cameraSphericalRef = useRef<{ radius: number; theta: number; phi: number }>({
-    radius: 38,
+    radius: 44,
     theta: Math.PI / 4,
-    phi: Math.PI / 2.7
+    phi: Math.PI / 2.65
   });
 
   const [autoRotate, setAutoRotate] = useState<boolean>(false);
@@ -80,7 +85,8 @@ export const StatesOfMatter3D: React.FC<StatesOfMatter3DProps> = ({
     pressureAtm,
     phase,
     gravityValue,
-    burnerActive
+    burnerActive,
+    magneticFieldActive
   });
   liveStateRef.current = {
     volumeLidPercent,
@@ -88,7 +94,8 @@ export const StatesOfMatter3D: React.FC<StatesOfMatter3DProps> = ({
     pressureAtm,
     phase,
     gravityValue,
-    burnerActive
+    burnerActive,
+    magneticFieldActive
   };
 
   // References for live 3D updates
@@ -102,6 +109,7 @@ export const StatesOfMatter3D: React.FC<StatesOfMatter3DProps> = ({
   const coolerFrostMeshRef = useRef<THREE.Mesh | null>(null);
   const coolerFrostLightRef = useRef<THREE.PointLight | null>(null);
   const latticeLinesRef = useRef<THREE.LineSegments | null>(null);
+  const magneticCoilsRef = useRef<THREE.Group | null>(null);
 
   const chamberRadius = 7.0;
   const chamberHeight = 16.0;
@@ -126,16 +134,26 @@ export const StatesOfMatter3D: React.FC<StatesOfMatter3DProps> = ({
       radius * Math.cos(phi),
       radius * Math.sin(phi) * Math.sin(theta)
     );
-    camera.lookAt(0, 5, 0);
+    camera.lookAt(0, 5.8, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height, false);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
     renderer.domElement.style.display = 'block';
     renderer.shadowMap.enabled = true;
     rendererRef.current = renderer;
+
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    const roomEnv = new RoomEnvironment();
+    const envRT = pmremGenerator.fromScene(roomEnv, 0.04);
+    scene.environment = envRT.texture;
+    roomEnv.dispose();
+    pmremGenerator.dispose();
 
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
@@ -222,6 +240,28 @@ export const StatesOfMatter3D: React.FC<StatesOfMatter3DProps> = ({
       ticksGroup.add(tickMesh);
     }
     chamberGroup.add(ticksGroup);
+
+    // 3D Tokamak / Magnetic Confinement Coils around Chamber (active in Plasma magnet mode)
+    const coilsGroup = new THREE.Group();
+    const coilGeo = new THREE.TorusGeometry(chamberRadius + 0.55, 0.16, 12, 48);
+    coilGeo.rotateX(Math.PI / 2);
+    const coilMat = new THREE.MeshStandardMaterial({
+      color: 0xa855f7,
+      emissive: 0x7e22ce,
+      emissiveIntensity: 1.2,
+      roughness: 0.2,
+      metalness: 0.8,
+      transparent: true,
+      opacity: 0.88
+    });
+    [3.5, 8.5, 13.5].forEach((cy) => {
+      const coilRing = new THREE.Mesh(coilGeo, coilMat);
+      coilRing.position.y = cy;
+      coilsGroup.add(coilRing);
+    });
+    coilsGroup.visible = false;
+    chamberGroup.add(coilsGroup);
+    magneticCoilsRef.current = coilsGroup;
 
     // 3D Movable Piston Group
     const pistonGroup = new THREE.Group();
@@ -775,11 +815,26 @@ export const StatesOfMatter3D: React.FC<StatesOfMatter3DProps> = ({
           p.vy = (p.vy / currentSpeed) * newSpeed;
           p.vz = (p.vz / currentSpeed) * newSpeed;
 
-          // In plasma, add slight electromagnetic jitter
+          // In plasma, add electromagnetic jitter + real 3D Lorentz Cyclotron Magnetic Confinement Force
           if (curPhase === 'plasma') {
-            p.vx += (Math.random() - 0.5) * 0.04;
-            p.vy += (Math.random() - 0.5) * 0.04;
-            p.vz += (Math.random() - 0.5) * 0.04;
+            if (liveStateRef.current.magneticFieldActive) {
+              // Lorentz force F = q(v x B) with vertical B = (0, Bz, 0) pulls plasma into helical orbits
+              const cyclotronOmega = 0.085;
+              const lorentzFx = -p.vz * cyclotronOmega;
+              const lorentzFz = p.vx * cyclotronOmega;
+              // Radial parabolic magnetic bottle restoring force toward central cylinder axis
+              p.vx += lorentzFx - p.x * 0.012;
+              p.vz += lorentzFz - p.z * 0.012;
+              p.vy += ((chamberHeight * 0.45 - p.y) * 0.004);
+            } else {
+              p.vx += (Math.random() - 0.5) * 0.04;
+              p.vy += (Math.random() - 0.5) * 0.04;
+              p.vz += (Math.random() - 0.5) * 0.04;
+            }
+          }
+
+          if (magneticCoilsRef.current) {
+            magneticCoilsRef.current.visible = curPhase === 'plasma' && !!liveStateRef.current.magneticFieldActive;
           }
 
           p.x += p.vx;
@@ -1013,6 +1068,15 @@ export const StatesOfMatter3D: React.FC<StatesOfMatter3DProps> = ({
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
+      scene.traverse((obj) => {
+        if ((obj as THREE.Mesh).geometry) (obj as THREE.Mesh).geometry.dispose();
+        const mat = (obj as THREE.Mesh).material;
+        if (mat) {
+          if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+          else mat.dispose();
+        }
+      });
+      envRT.dispose();
       renderer.dispose();
       scene.clear();
     };
@@ -1054,99 +1118,124 @@ export const StatesOfMatter3D: React.FC<StatesOfMatter3DProps> = ({
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    cameraSphericalRef.current.radius = Math.max(18, Math.min(65, cameraSphericalRef.current.radius + e.deltaY * 0.035));
+    cameraSphericalRef.current.radius = Math.max(20, Math.min(72, cameraSphericalRef.current.radius + e.deltaY * 0.035));
   };
 
   const handleZoom = (delta: number) => {
     playLabSound('click');
-    cameraSphericalRef.current.radius = Math.max(18, Math.min(65, cameraSphericalRef.current.radius + delta));
+    cameraSphericalRef.current.radius = Math.max(20, Math.min(72, cameraSphericalRef.current.radius + delta));
   };
 
   const handleResetCamera = () => {
     playLabSound('click');
-    cameraSphericalRef.current = { radius: 38, theta: Math.PI / 4, phi: Math.PI / 2.7 };
+    cameraSphericalRef.current = { radius: 44, theta: Math.PI / 4, phi: Math.PI / 2.65 };
   };
 
   return (
-    <div
-      className={`relative w-full aspect-[4/3] max-w-[460px] bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center select-none group transition-all ${
-        isFullscreen ? 'fixed inset-4 z-50 max-w-none aspect-auto border-2 border-cyan-500/50 shadow-2xl' : ''
-      }`}
-    >
-      {/* 3D Canvas Mount */}
-      <div
-        ref={containerRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
-      />
-
-      {/* Floating State HUD */}
-      <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 z-20 pointer-events-none text-[10px] font-mono">
-        <div className="px-2.5 py-1 rounded-lg bg-slate-900/90 backdrop-blur-md border border-slate-700/80 text-cyan-300 flex items-center gap-1.5 shadow-md">
-          <span className="font-bold text-white">{t(substance.name, substance.nameEn)}</span>
-          <span className="text-slate-600">·</span>
-          <span className="text-emerald-400 font-bold">{phaseName}</span>
-          <span className="text-slate-600">·</span>
-          <span className="text-cyan-400 font-bold">{actualTemp.toFixed(0)} K</span>
-          <span className="text-slate-600">·</span>
-          <span className="text-amber-400 font-bold">{pressureAtm.toFixed(2)} Atm</span>
-        </div>
-      </div>
-
-      {/* Camera Controls */}
-      <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 z-20 bg-slate-900/85 backdrop-blur-md p-1 rounded-xl border border-slate-800 shadow-md">
-        <button
-          onClick={() => handleZoom(-5)}
-          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-          title={t('تقريب (Zoom In)', 'Zoom In')}
-        >
-          <ZoomIn className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => handleZoom(5)}
-          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-          title={t('تبعيد (Zoom Out)', 'Zoom Out')}
-        >
-          <ZoomOut className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => {
-            playLabSound('click');
-            setAutoRotate(!autoRotate);
-          }}
-          className={`p-1.5 rounded-lg transition-colors ${
-            autoRotate ? 'bg-cyan-600 text-white' : 'hover:bg-slate-800 text-slate-300 hover:text-white'
-          }`}
-          title={t('دوران تلقائي (Auto-rotate)', 'Auto-rotate')}
-        >
-          <Compass className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={handleResetCamera}
-          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-          title={t('إعادة ضبط زاوية الرؤية', 'Reset Camera')}
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => {
-            playLabSound('click');
-            setIsFullscreen(!isFullscreen);
-          }}
-          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-          title={isFullscreen ? t('تصغير', 'Exit Fullscreen') : t('تكبير الشاشة', 'Fullscreen')}
-        >
-          {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 text-cyan-400" /> : <Maximize2 className="w-3.5 h-3.5" />}
-        </button>
-      </div>
-
-      <div className="absolute bottom-2.5 left-2.5 text-[10px] text-slate-400 font-mono bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800/80 pointer-events-none">
-        <span>{t('اسحب للتدوير 360° · عجل الماوس للتقريب', 'Drag 360° · Scroll zoom')}</span>
-      </div>
+    <div className="w-full max-w-[460px]">
+      <StageViewportFrame
+        isFullscreen={isFullscreen}
+        canvasHeightClass="h-[320px] sm:h-[360px]"
+        accentColor="cyan"
+        title={
+          <>
+            <h3 className="text-sm sm:text-base font-bold truncate">
+              {t(substance.name, substance.nameEn)}
+            </h3>
+            <span className="text-xs font-bold text-emerald-500">
+              {phaseName}
+            </span>
+          </>
+        }
+        subtitle={
+          <span className="font-mono tabular-nums">
+            {actualTemp.toFixed(0)} K · {pressureAtm.toFixed(2)} Atm
+          </span>
+        }
+        toolbar={
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleZoom(-5)}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white' : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+              }`}
+              title={t('تقريب (Zoom In)', 'Zoom In')}
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleZoom(5)}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white' : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+              }`}
+              title={t('تبعيد (Zoom Out)', 'Zoom Out')}
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                playLabSound('click');
+                setAutoRotate(!autoRotate);
+              }}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                autoRotate
+                  ? 'bg-cyan-600 border-cyan-500 text-white'
+                  : isDark
+                  ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                  : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+              }`}
+              title={t('دوران تلقائي (Auto-rotate)', 'Auto-rotate')}
+            >
+              <Compass className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleResetCamera}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white' : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+              }`}
+              title={t('إعادة ضبط زاوية الرؤية', 'Reset Camera')}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                playLabSound('click');
+                setIsFullscreen(!isFullscreen);
+              }}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                isFullscreen
+                  ? 'bg-cyan-600 border-cyan-500 text-white'
+                  : isDark
+                  ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                  : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+              }`}
+              title={isFullscreen ? t('تصغير', 'Exit Fullscreen') : t('تكبير الشاشة', 'Fullscreen')}
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        }
+        bottomBar={
+          <span className="text-[11px]">
+            {t('اسحب للتدوير 360° · عجل الماوس للتقريب', 'Drag 360° · Scroll to zoom')}
+          </span>
+        }
+      >
+        <div
+          ref={containerRef}
+          className="w-full h-full cursor-grab active:cursor-grabbing"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onWheel={handleWheel}
+        />
+      </StageViewportFrame>
     </div>
   );
 };

@@ -10,10 +10,10 @@ import {
   Compass,
   Maximize2,
   Minimize2,
-  Wind,
-  Sparkles
+  Wind
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { StageViewportFrame } from './StageViewportFrame';
 
 export interface LabViewer3DProps {
   totalVolumeMl: number;
@@ -357,7 +357,13 @@ export const LabViewer3D: React.FC<LabViewer3DProps> = ({
     sidePanel2.position.set(-18, 8, -10);
     sidePanel2.lookAt(0, 0, 0);
     envScene.add(sidePanel2);
-    scene.environment = pmremGenerator.fromScene(envScene, 0.04).texture;
+    const envRT = pmremGenerator.fromScene(envScene, 0.04);
+    scene.environment = envRT.texture;
+    panelGeo.dispose();
+    envScene.traverse((obj) => {
+      const m = (obj as THREE.Mesh).material;
+      if (m && !Array.isArray(m)) m.dispose();
+    });
     pmremGenerator.dispose();
 
     container.innerHTML = '';
@@ -2220,6 +2226,15 @@ export const LabViewer3D: React.FC<LabViewer3DProps> = ({
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
+      scene.traverse((obj) => {
+        if ((obj as THREE.Mesh).geometry) (obj as THREE.Mesh).geometry.dispose();
+        const mat = (obj as THREE.Mesh).material;
+        if (mat) {
+          if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+          else mat.dispose();
+        }
+      });
+      envRT.dispose();
       renderer.dispose();
       scene.clear();
     };
@@ -2770,10 +2785,10 @@ export const LabViewer3D: React.FC<LabViewer3DProps> = ({
   const handleSetCameraPreset = (preset: 'beaker' | 'top' | 'flame' | 'overview') => {
     setActiveCameraView(preset);
     if (preset === 'beaker') {
-      cameraSphericalRef.current = { radius: 21, theta: Math.PI / 3.8, phi: Math.PI / 2.65 };
-      cameraTargetRef.current.set(0, 6.8, 0);
+      cameraSphericalRef.current = { radius: 24.5, theta: Math.PI / 3.8, phi: Math.PI / 2.65 };
+      cameraTargetRef.current.set(0, 6.4, 0);
     } else if (preset === 'top') {
-      cameraSphericalRef.current = { radius: 24, theta: Math.PI / 4, phi: 0.20 };
+      cameraSphericalRef.current = { radius: 25, theta: Math.PI / 4, phi: 0.20 };
       cameraTargetRef.current.set(0, 7.0, 0);
     } else if (preset === 'flame') {
       cameraSphericalRef.current = { radius: 22, theta: Math.PI / 3.4, phi: Math.PI / 2.1 };
@@ -2785,226 +2800,176 @@ export const LabViewer3D: React.FC<LabViewer3DProps> = ({
   };
 
   return (
-    <div className={`relative w-full aspect-[4/3] max-w-[620px] bg-slate-950 border-2 border-slate-700/60 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center select-none group transition-all ${
-      isFullscreen ? 'fixed inset-4 z-50 max-w-none aspect-auto shadow-2xl' : ''
-    }`}>
-      {/* 3D Canvas Mount */}
-      <div
-        ref={containerRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
-      />
-
-      {/* Explosion / Flare Viewport Flash Overlay */}
-      {flashOverlay && (
-        <div
-          className="absolute inset-0 pointer-events-none z-20 transition-opacity duration-75"
-          style={{
-            backgroundColor: flashOverlay.color,
-            opacity: flashOverlay.opacity
-          }}
-        />
-      )}
-
-      {/* Floating Laboratory HUD Badges */}
-      <div className="absolute top-3 left-3 flex flex-col gap-1.5 pointer-events-none z-10 text-[10px] font-mono">
-        <div className="px-2.5 py-1 rounded-lg bg-slate-900/90 backdrop-blur-md border border-cyan-500/50 text-cyan-300 flex items-center gap-1.5 shadow-lg">
-          <Thermometer className="w-3.5 h-3.5 text-cyan-400" />
-          <span className="font-bold">{currentTempC.toFixed(1)} °C</span>
-          <span className="text-slate-500">|</span>
-          <span className="text-emerald-400 font-bold">pH {phValue.toFixed(2)}</span>
-          <span className="text-slate-500">|</span>
-          <span className="text-amber-300 font-bold">{displayedWeightG.toFixed(1)} g</span>
+    <div className="w-full max-w-[620px]">
+      <StageViewportFrame
+        isFullscreen={isFullscreen}
+        canvasHeightClass="h-[360px] sm:h-[420px]"
+        accentColor="cyan"
+        title={
+          <div className="flex items-center gap-2 font-mono text-xs sm:text-sm tabular-nums">
+            <Thermometer className="w-4 h-4 text-cyan-500 shrink-0" />
+            <span className="font-bold">{currentTempC.toFixed(1)} °C</span>
+            <span aria-hidden="true" className="opacity-40">·</span>
+            <span className="font-bold text-emerald-500">pH {phValue.toFixed(2)}</span>
+            <span aria-hidden="true" className="opacity-40">·</span>
+            <span className="font-bold text-amber-500">{displayedWeightG.toFixed(1)} g</span>
+          </div>
+        }
+        subtitle={
+          <div className="flex items-center gap-1 flex-wrap pt-0.5">
+            {([
+              { id: 'beaker' as const, ar: 'الكأس', en: 'Beaker' },
+              { id: 'top' as const, ar: 'السطح', en: 'Top' },
+              { id: 'flame' as const, ar: 'اللهب', en: 'Flame' },
+              { id: 'overview' as const, ar: 'المعمل', en: 'Lab' }
+            ]).map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => handleSetCameraPreset(preset.id)}
+                className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-colors ${
+                  activeCameraView === preset.id
+                    ? 'bg-cyan-600 text-white'
+                    : 'hover:bg-slate-800/60 hover:text-cyan-400'
+                }`}
+              >
+                {t(preset.ar, preset.en)}
+              </button>
+            ))}
+          </div>
+        }
+        toolbar={
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleZoom(-4)}
+              className="p-1.5 rounded-lg border border-slate-700/60 hover:text-cyan-400 transition-colors"
+              title={t('تقريب (Zoom In)', 'Zoom In')}
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleZoom(4)}
+              className="p-1.5 rounded-lg border border-slate-700/60 hover:text-cyan-400 transition-colors"
+              title={t('تبعيد (Zoom Out)', 'Zoom Out')}
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setAutoRotate(!autoRotate)}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                autoRotate ? 'bg-cyan-600 border-cyan-500 text-white' : 'border-slate-700/60 hover:text-cyan-400'
+              }`}
+              title={t('دوران تلقائي للمعمل (Auto-rotate)', 'Auto-rotate')}
+            >
+              <Compass className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetCameraPreset('beaker')}
+              className="p-1.5 rounded-lg border border-slate-700/60 hover:text-cyan-400 transition-colors"
+              title={t('إعادة ضبط الكاميرا', 'Reset Camera')}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                isFullscreen ? 'bg-cyan-600 border-cyan-500 text-white' : 'border-slate-700/60 hover:text-cyan-400'
+              }`}
+              title={isFullscreen ? t('تصغير', 'Exit Fullscreen') : t('تكبير الشاشة', 'Fullscreen')}
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        }
+        bottomBar={
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            <span>{t('اسحب للتدوير 360° · عجل الماوس للتقريب', 'Drag to rotate 360° · Scroll to zoom')}</span>
+            <div className="flex flex-wrap items-center gap-2 font-semibold">
+              {flameTestMetal !== 'none' && (
+                <span className="text-amber-500 flex items-center gap-1">
+                  <Flame className="w-3 h-3" />
+                  {t(`لهب: ${flameTestMetal}`, `Flame: ${flameTestMetal}`)}
+                </span>
+              )}
+              {isConductivityActive && (
+                <span className={conductivityGlow > 0.05 && totalVolumeMl > 0 ? 'text-amber-400' : 'text-slate-400'}>
+                  {conductivityGlow > 0.05 && totalVolumeMl > 0
+                    ? `${t('توصيل:', 'Conductivity:')} ${(conductivityGlow * 100).toFixed(0)}%`
+                    : t('غير موصل', 'Non-conductive')}
+                </span>
+              )}
+              {hydrogenGasMl > 0 && !isBalloonAttached && (
+                <span className="text-sky-400 flex items-center gap-1">
+                  <Wind className="w-3 h-3" />
+                  {hydrogenGasMl.toFixed(0)} mL H₂
+                </span>
+              )}
+              {(isBalloonAttached || balloonInflation > 0) && (
+                <span className="text-pink-400">
+                  {t('البالون:', 'Balloon:')} {balloonInflation.toFixed(0)}%
+                </span>
+              )}
+              {swellingType !== 'none' && swellingLevel > 0 && (
+                <span className="text-purple-400">
+                  {t('انتفاخ:', 'Swelling:')} {swellingLevel.toFixed(0)}%
+                </span>
+              )}
+              {crystalType !== 'none' && crystalLevel > 0 && (
+                <span className="text-cyan-400">
+                  {t('تبلور:', 'Crystals:')} {crystalLevel.toFixed(0)}%
+                </span>
+              )}
+              {brownGasIntensity > 0 && (
+                <span className="text-amber-400">
+                  NO₂: {brownGasIntensity.toFixed(0)}%
+                </span>
+              )}
+              {chemiluminescenceLevel > 0 && (
+                <span className="text-teal-400 flex items-center gap-1">
+                  <Zap className="w-3 h-3" />
+                  {t('توهج:', 'Glow:')} {chemiluminescenceLevel.toFixed(0)}%
+                </span>
+              )}
+              {silverMirrorLevel > 0 && (
+                <span className="text-slate-300">
+                  {t('مرآة الفضة:', 'Mirror:')} {silverMirrorLevel.toFixed(0)}%
+                </span>
+              )}
+              {thermiteGlow > 0 && (
+                <span className="text-orange-400">
+                  {t('ثرميت:', 'Thermite:')} {thermiteGlow.toFixed(0)}%
+                </span>
+              )}
+            </div>
+          </div>
+        }
+      >
+        <div className="relative w-full h-full">
+          <div
+            ref={containerRef}
+            className="w-full h-full cursor-grab active:cursor-grabbing"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onWheel={handleWheel}
+          />
+          {flashOverlay && (
+            <div
+              className="absolute inset-0 pointer-events-none z-20 transition-opacity duration-75"
+              style={{
+                backgroundColor: flashOverlay.color,
+                opacity: flashOverlay.opacity
+              }}
+            />
+          )}
         </div>
-
-        {flameTestMetal !== 'none' && (
-          <div className="px-2.5 py-1 rounded-lg bg-amber-950/90 backdrop-blur-md border border-amber-500/60 text-amber-300 flex items-center gap-1.5 animate-pulse shadow-md">
-            <Flame className="w-3.5 h-3.5 text-amber-400" />
-            <span className="font-bold">{t(`اختبار لهب نشط: ${flameTestMetal}`, `Active Flame Test: ${flameTestMetal}`)}</span>
-          </div>
-        )}
-
-        {isConductivityActive && (
-          <div className={`px-2.5 py-1 rounded-lg backdrop-blur-md border flex items-center gap-1.5 shadow-md ${
-            conductivityGlow > 0.05 && totalVolumeMl > 0
-              ? 'bg-yellow-950/90 border-yellow-500/60 text-yellow-300'
-              : 'bg-slate-900/90 border-slate-700 text-slate-400'
-          }`}>
-            <Zap className={`w-3.5 h-3.5 ${conductivityGlow > 0.05 && totalVolumeMl > 0 ? 'text-yellow-400 animate-bounce' : 'text-slate-500'}`} />
-            <span className="font-bold">
-              {conductivityGlow > 0.05 && totalVolumeMl > 0
-                ? `${t('توصيل كهربائي:', 'Conductivity:')} ${(conductivityGlow * 100).toFixed(0)}%`
-                : t('محلول غير موصل (عازل)', 'Non-conductive solution')}
-            </span>
-          </div>
-        )}
-
-        {hydrogenGasMl > 0 && !isBalloonAttached && (
-          <div className="px-2.5 py-1 rounded-lg bg-blue-950/90 backdrop-blur-md border border-blue-500/50 text-blue-300 flex items-center gap-1.5 shadow-md">
-            <Wind className="w-3.5 h-3.5 text-blue-400" />
-            <span className="font-bold">{t('محقنة تجميع الغاز:', 'Gas Syringe:')} {hydrogenGasMl.toFixed(0)} mL H₂</span>
-          </div>
-        )}
-
-        {(isBalloonAttached || balloonInflation > 0) && (
-          <div className="px-2.5 py-1 rounded-lg bg-pink-950/90 backdrop-blur-md border border-pink-500/60 text-pink-300 flex items-center gap-1.5 shadow-md">
-            <span>🎈</span>
-            <span className="font-bold">
-              {t('انتفاخ بالون الغاز:', 'Balloon Inflation:')} {balloonInflation.toFixed(0)}%
-            </span>
-          </div>
-        )}
-
-        {swellingType !== 'none' && swellingLevel > 0 && (
-          <div className="px-2.5 py-1 rounded-lg bg-purple-950/90 backdrop-blur-md border border-purple-500/60 text-purple-300 flex items-center gap-1.5 shadow-md animate-pulse">
-            <span>{swellingType === 'carbon_snake' ? '🐍' : '🌋'}</span>
-            <span className="font-bold">
-              {swellingType === 'carbon_snake'
-                ? `${t('انتفاخ ثعبان الكربون:', 'Carbon Snake Swelling:')} ${swellingLevel.toFixed(0)}%`
-                : `${t('انتفاخ رغوة معجون الفيل:', 'Elephant Foam Swelling:')} ${swellingLevel.toFixed(0)}%`}
-            </span>
-          </div>
-        )}
-
-        {crystalType !== 'none' && crystalLevel > 0 && (
-          <div className="px-2.5 py-1 rounded-lg bg-cyan-950/90 backdrop-blur-md border border-cyan-400/60 text-cyan-200 flex items-center gap-1.5 shadow-md">
-            <span>💎</span>
-            <span className="font-bold">
-              {t('نمو البلورات (التبلور):', 'Crystal Growth:')} {crystalLevel.toFixed(0)}%
-            </span>
-          </div>
-        )}
-
-        {brownGasIntensity > 0 && (
-          <div className="px-2.5 py-1 rounded-lg bg-amber-950/90 backdrop-blur-md border border-amber-600/60 text-amber-300 flex items-center gap-1.5 shadow-md">
-            <span>☁️</span>
-            <span className="font-bold">
-              {t('غاز NO₂ البني المتصاعد:', 'Evolving Brown NO₂ Gas:')} {brownGasIntensity.toFixed(0)}%
-            </span>
-          </div>
-        )}
-
-        {chemiluminescenceLevel > 0 && (
-          <div className="px-2.5 py-1 rounded-lg bg-teal-950/90 backdrop-blur-md border border-teal-400/60 text-teal-200 flex items-center gap-1.5 shadow-md animate-pulse">
-            <span>✨</span>
-            <span className="font-bold">
-              {t('توهج اللومينول الكيميائي:', 'Luminol Chemiluminescence:')} {chemiluminescenceLevel.toFixed(0)}%
-            </span>
-          </div>
-        )}
-
-        {silverMirrorLevel > 0 && (
-          <div className="px-2.5 py-1 rounded-lg bg-slate-800/95 backdrop-blur-md border border-slate-300/60 text-slate-100 flex items-center gap-1.5 shadow-md">
-            <span>🪞</span>
-            <span className="font-bold">
-              {t('مرآة الفضة البراقة (تولن):', 'Tollens Silver Mirror:')} {silverMirrorLevel.toFixed(0)}%
-            </span>
-          </div>
-        )}
-
-        {thermiteGlow > 0 && (
-          <div className="px-2.5 py-1 rounded-lg bg-orange-950/95 backdrop-blur-md border border-yellow-400/70 text-yellow-200 flex items-center gap-1.5 shadow-md animate-bounce">
-            <span>🔥</span>
-            <span className="font-bold">
-              {t('تفاعل الثرميت المنصهر (2500°C):', 'Molten Thermite (2500°C):')} {thermiteGlow.toFixed(0)}%
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Camera View Angle Presets Toolbar */}
-      <div className="absolute top-3 right-3 flex items-center gap-1 z-10 bg-slate-900/85 backdrop-blur-md p-1 rounded-xl border border-slate-700 shadow-lg">
-        <button
-          onClick={() => handleSetCameraPreset('beaker')}
-          className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 ${
-            activeCameraView === 'beaker' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-          }`}
-          title={t('لقطة مقربة للكأس والماء', 'Beaker Close-up')}
-        >
-          <span>🔬</span>
-          <span>{t('الكأس', 'Beaker')}</span>
-        </button>
-        <button
-          onClick={() => handleSetCameraPreset('top')}
-          className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 ${
-            activeCameraView === 'top' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-          }`}
-          title={t('فحص المحلول والدوامة رأسياً من الأعلى', 'Top-Down Surface Vortex')}
-        >
-          <span>🌀</span>
-          <span>{t('السطح', 'Top')}</span>
-        </button>
-        <button
-          onClick={() => handleSetCameraPreset('flame')}
-          className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 ${
-            activeCameraView === 'flame' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-          }`}
-          title={t('تركيز على موقد بنسن واللهب', 'Burner Flame Focus')}
-        >
-          <span>🔥</span>
-          <span>{t('اللهب', 'Flame')}</span>
-        </button>
-        <button
-          onClick={() => handleSetCameraPreset('overview')}
-          className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 ${
-            activeCameraView === 'overview' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-          }`}
-          title={t('زاوية عامة شاملة لمنضدة المعمل', 'Full Workbench Overview')}
-        >
-          <span>🏛️</span>
-          <span>{t('المعمل', 'Lab')}</span>
-        </button>
-      </div>
-
-      {/* Camera Interactive Controls (Zoom, Auto-rotate, Reset, Fullscreen) */}
-      <div className="absolute bottom-2.5 right-3 flex items-center gap-1 z-10 bg-slate-900/85 backdrop-blur-md p-1 rounded-xl border border-slate-700 shadow-lg">
-        <button
-          onClick={() => handleZoom(-4)}
-          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-          title={t('تقريب (Zoom In)', 'Zoom In')}
-        >
-          <ZoomIn className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => handleZoom(4)}
-          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-          title={t('تبعيد (Zoom Out)', 'Zoom Out')}
-        >
-          <ZoomOut className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => setAutoRotate(!autoRotate)}
-          className={`p-1.5 rounded-lg transition-colors ${
-            autoRotate ? 'bg-cyan-600 text-white' : 'hover:bg-slate-800 text-slate-300 hover:text-white'
-          }`}
-          title={t('دوران تلقائي للمعمل (Auto-rotate)', 'Auto-rotate')}
-        >
-          <Compass className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => handleSetCameraPreset('beaker')}
-          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-          title={t('إعادة ضبط الكاميرا', 'Reset Camera')}
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => setIsFullscreen(!isFullscreen)}
-          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-          title={isFullscreen ? t('تصغير', 'Exit Fullscreen') : t('تكبير الشاشة', 'Fullscreen')}
-        >
-          {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 text-cyan-400" /> : <Maximize2 className="w-3.5 h-3.5" />}
-        </button>
-      </div>
-
-      {/* Interactive Helper Cue */}
-      <div className="absolute bottom-2.5 left-3 text-[10px] text-slate-400 font-mono bg-slate-950/80 px-2 py-0.5 rounded-md border border-slate-800 pointer-events-none">
-        <span>🖱️ {t('اسحب للتدوير 360° | عجل الماوس للتقريب', 'Drag to rotate 360° | Scroll to zoom')}</span>
-      </div>
+      </StageViewportFrame>
     </div>
   );
 };

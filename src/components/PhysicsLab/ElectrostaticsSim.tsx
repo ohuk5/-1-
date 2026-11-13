@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Plus, Minus, Zap, Info, Move, Crosshair, Sparkles, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Play, Pause, Plus, Minus, Zap, Info, Crosshair, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { playLabSound } from '../../utils/soundEffects';
 
@@ -109,17 +109,17 @@ export const ElectrostaticsSim: React.FC = () => {
   };
 
   // Mouse / Touch handlers for dragging charges
-  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerStart = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const clickX = (e.clientX - rect.left) * scaleX;
-    const clickY = (e.clientY - rect.top) * scaleY;
+    const scaleX = canvas.width / (rect.width || 1);
+    const scaleY = canvas.height / (rect.height || 1);
+    const clickX = (clientX - rect.left) * scaleX;
+    const clickY = (clientY - rect.top) * scaleY;
 
     // Check if clicked on a charge (hit radius ~22px)
-    const clicked = charges.find(c => Math.hypot(c.x - clickX, c.y - clickY) < 22);
+    const clicked = charges.find(c => Math.hypot(c.x - clickX, c.y - clickY) < 26);
     if (clicked) {
       setDraggingChargeId(clicked.id);
       setSelectedChargeId(clicked.id);
@@ -129,32 +129,37 @@ export const ElectrostaticsSim: React.FC = () => {
     }
   };
 
-  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerMove = (clientX: number, clientY: number) => {
     if (!draggingChargeId) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const curX = Math.max(20, Math.min(canvas.width - 20, (e.clientX - rect.left) * scaleX));
-    const curY = Math.max(20, Math.min(canvas.height - 20, (e.clientY - rect.top) * scaleY));
+    const scaleX = canvas.width / (rect.width || 1);
+    const scaleY = canvas.height / (rect.height || 1);
+    const curX = Math.max(20, Math.min(canvas.width - 20, (clientX - rect.left) * scaleX));
+    const curY = Math.max(20, Math.min(canvas.height - 20, (clientY - rect.top) * scaleY));
 
     setCharges(prev =>
       prev.map(c => (c.id === draggingChargeId ? { ...c, x: curX, y: curY } : c))
     );
   };
 
-  const handleCanvasMouseUp = () => {
+  const handlePointerEnd = () => {
     setDraggingChargeId(null);
   };
 
   // 60FPS Render Loop
   useEffect(() => {
     let animId: number;
+    let isMounted = true;
 
     const render = () => {
+      if (!isMounted) return;
       const canvas = canvasRef.current;
-      if (!canvas) return;
+      if (!canvas) {
+        animId = requestAnimationFrame(render);
+        return;
+      }
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
@@ -366,7 +371,10 @@ export const ElectrostaticsSim: React.FC = () => {
     };
 
     animId = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(animId);
+    return () => {
+      isMounted = false;
+      cancelAnimationFrame(animId);
+    };
   }, [charges, selectedChargeId, showFieldVectors, showPotentialHeatmap, testParticle, isSimulatingParticle, isDark]);
 
   // Selected charge data
@@ -391,19 +399,19 @@ export const ElectrostaticsSim: React.FC = () => {
     <div className="w-full flex flex-col gap-6">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Main Canvas Visualizer (Col 1-8) */}
-        <div className={`lg:col-span-8 rounded-3xl border p-4 sm:p-6 flex flex-col gap-4 shadow-sm ${
+        <div className={`lg:col-span-8 min-w-0 rounded-3xl border p-4 sm:p-6 flex flex-col gap-4 shadow-sm ${
           isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="p-2 rounded-xl bg-purple-500/10 text-purple-400">
+              <span className="p-2 rounded-xl bg-purple-500/10 text-purple-500">
                 <Zap className="w-5 h-5" />
               </span>
               <div>
-                <h3 className="text-base font-bold text-slate-100 dark:text-white">
+                <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {t('المجال الكهروستاتيكي وقانون كولوم', 'Electrostatic Fields & Coulomb\'s Law')}
                 </h3>
-                <p className="text-xs text-slate-400">
+                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                   {t('اسحب الشحنات في الفضاء لمشاهدة خطوط المجال وحساب قوى التجاذب والتنافر اللحظية', 'Drag charges to observe electric field vectors and Coulomb forces')}
                 </p>
               </div>
@@ -439,15 +447,21 @@ export const ElectrostaticsSim: React.FC = () => {
           </div>
 
           {/* Canvas Workspace */}
-          <div className="relative w-full aspect-[16/10] sm:aspect-[16/9] rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 flex items-center justify-center cursor-crosshair select-none">
+          <div className={`relative w-full aspect-[16/10] sm:aspect-[16/9] rounded-2xl overflow-hidden border bg-slate-950 flex items-center justify-center cursor-crosshair select-none ${
+            isDark ? 'border-slate-800' : 'border-slate-300'
+          }`}>
             <canvas
               ref={canvasRef}
               width={800}
               height={460}
-              onMouseDown={handleCanvasMouseDown}
-              onMouseMove={handleCanvasMouseMove}
-              onMouseUp={handleCanvasMouseUp}
-              className="w-full h-full block object-contain"
+              onMouseDown={(e) => handlePointerStart(e.clientX, e.clientY)}
+              onMouseMove={(e) => handlePointerMove(e.clientX, e.clientY)}
+              onMouseUp={handlePointerEnd}
+              onMouseLeave={handlePointerEnd}
+              onTouchStart={(e) => e.touches[0] && handlePointerStart(e.touches[0].clientX, e.touches[0].clientY)}
+              onTouchMove={(e) => e.touches[0] && handlePointerMove(e.touches[0].clientX, e.touches[0].clientY)}
+              onTouchEnd={handlePointerEnd}
+              className="w-full h-full block object-contain touch-none"
             />
 
             {/* Overlays / Toggles */}
@@ -476,7 +490,7 @@ export const ElectrostaticsSim: React.FC = () => {
 
             {/* Bottom HUD: Live Coulomb Force */}
             {charges.length >= 2 && (
-              <div className="absolute bottom-3 left-3 px-3 py-2 rounded-2xl bg-slate-900/90 border border-slate-700 text-xs backdrop-blur-md flex items-center gap-3">
+              <div className="absolute bottom-3 left-3 px-3 py-2 rounded-2xl bg-slate-900/90 border border-slate-700 text-xs backdrop-blur-md flex items-center gap-2 sm:gap-3 flex-wrap">
                 <span className="text-slate-400">{t('المسافة r:', 'Distance r:')}</span>
                 <span className="font-mono font-bold text-cyan-400 tabular-nums">{pairDistanceM} m</span>
                 <span className="text-slate-600">|</span>
@@ -494,72 +508,109 @@ export const ElectrostaticsSim: React.FC = () => {
           </div>
 
           {/* Test Particle Controls Strip */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800 text-xs">
-            <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-              <Crosshair className="w-4 h-4 text-cyan-400" />
+          <div className={`flex flex-wrap items-center justify-between gap-3 pt-2 border-t text-xs ${
+            isDark ? 'border-slate-800' : 'border-slate-200'
+          }`}>
+            <span className={`font-semibold flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+              <Crosshair className="w-4 h-4 text-cyan-500 shrink-0" />
               {t('إطلاق شحنة اختبارية لمشاهدة مسار التسارع في المجال:', 'Launch a test particle into the field:')}
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={() => spawnTestParticle(1)}
-                className="py-1.5 px-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 hover:bg-rose-500/30 transition-all font-medium"
+                onClick={() => {
+                  setIsSimulatingParticle(true);
+                  spawnTestParticle(1);
+                }}
+                className={`py-1.5 px-3 rounded-xl border transition-all font-medium ${
+                  isDark
+                    ? 'bg-rose-500/20 border-rose-500/40 text-rose-300 hover:bg-rose-500/30'
+                    : 'bg-rose-50 border-rose-300 text-rose-700 hover:bg-rose-100'
+                }`}
               >
                 {t('+ إطلاق شحنة موجبة (+q)', '+ Launch Positive')}
               </button>
               <button
-                onClick={() => spawnTestParticle(-1)}
-                className="py-1.5 px-3 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-300 hover:bg-blue-500/30 transition-all font-medium"
+                onClick={() => {
+                  setIsSimulatingParticle(true);
+                  spawnTestParticle(-1);
+                }}
+                className={`py-1.5 px-3 rounded-xl border transition-all font-medium ${
+                  isDark
+                    ? 'bg-blue-500/20 border-blue-500/40 text-blue-300 hover:bg-blue-500/30'
+                    : 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
+                }`}
               >
                 {t('- إطلاق إلكترون سالب (-e)', '- Launch Electron')}
               </button>
               {testParticle && (
-                <button
-                  onClick={() => setTestParticle(null)}
-                  className="py-1.5 px-2.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-400 transition-all"
-                >
-                  {t('مسح', 'Clear')}
-                </button>
+                <>
+                  <button
+                    onClick={() => setIsSimulatingParticle(p => !p)}
+                    className={`py-1.5 px-2.5 rounded-xl border flex items-center gap-1 transition-all ${
+                      isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {isSimulatingParticle ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                    <span>{isSimulatingParticle ? t('إيقاف', 'Pause') : t('استئناف', 'Resume')}</span>
+                  </button>
+                  <button
+                    onClick={() => setTestParticle(null)}
+                    className={`py-1.5 px-2.5 rounded-xl border transition-all ${
+                      isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-400' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {t('مسح', 'Clear')}
+                  </button>
+                </>
               )}
             </div>
           </div>
         </div>
 
         {/* Electrostatics Control Deck (Col 9-12) */}
-        <div className="lg:col-span-4 flex flex-col gap-4">
+        <div className="lg:col-span-4 min-w-0 flex flex-col gap-4">
           {/* Add Charges Deck */}
           <div className={`p-5 rounded-3xl border flex flex-col gap-3 shadow-sm ${
             isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
           }`}>
-            <span className="text-xs font-bold text-slate-200">
+            <span className={`text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
               {t('إضافة شحنات نقطية إلى الفضاء:', 'Add Point Charges to Workspace:')}
             </span>
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => addCharge(2)}
-                className="py-2.5 px-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 hover:bg-rose-500/20 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  isDark ? 'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20' : 'bg-rose-50 border-rose-300 text-rose-700 hover:bg-rose-100'
+                }`}
               >
-                <Plus className="w-4 h-4 text-rose-400" />
+                <Plus className="w-4 h-4 text-rose-500" />
                 <span>+2 µC</span>
               </button>
               <button
                 onClick={() => addCharge(-2)}
-                className="py-2.5 px-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 hover:bg-blue-500/20 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  isDark ? 'bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20' : 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
+                }`}
               >
-                <Minus className="w-4 h-4 text-blue-400" />
+                <Minus className="w-4 h-4 text-blue-500" />
                 <span>-2 µC</span>
               </button>
               <button
                 onClick={() => addCharge(5)}
-                className="py-2.5 px-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 hover:bg-rose-500/20 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  isDark ? 'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20' : 'bg-rose-50 border-rose-300 text-rose-700 hover:bg-rose-100'
+                }`}
               >
-                <Plus className="w-4 h-4 text-rose-400" />
+                <Plus className="w-4 h-4 text-rose-500" />
                 <span>+5 µC</span>
               </button>
               <button
                 onClick={() => addCharge(-5)}
-                className="py-2.5 px-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 hover:bg-blue-500/20 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  isDark ? 'bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20' : 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
+                }`}
               >
-                <Minus className="w-4 h-4 text-blue-400" />
+                <Minus className="w-4 h-4 text-blue-500" />
                 <span>-5 µC</span>
               </button>
             </div>
@@ -571,12 +622,12 @@ export const ElectrostaticsSim: React.FC = () => {
               isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
             }`}>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-200">
+                <span className={`text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                   {t('الشحنة المحددة (Selected Charge):', 'Selected Charge:')}
                 </span>
                 <button
                   onClick={removeSelectedCharge}
-                  className="p-1.5 rounded-lg border border-rose-500/40 text-rose-400 hover:bg-rose-500/10"
+                  className="p-1.5 rounded-lg border border-rose-500/40 text-rose-500 hover:bg-rose-500/10"
                   title={t('حذف الشحنة', 'Delete Charge')}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -584,8 +635,8 @@ export const ElectrostaticsSim: React.FC = () => {
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400">{t('المقدار (q):', 'Magnitude (q):')}</span>
-                <span className="font-mono font-bold text-sm text-cyan-400 tabular-nums">
+                <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{t('المقدار (q):', 'Magnitude (q):')}</span>
+                <span className="font-mono font-bold text-sm text-cyan-500 tabular-nums">
                   {selectedCharge.q > 0 ? `+${selectedCharge.q}` : selectedCharge.q} µC
                 </span>
               </div>
@@ -603,14 +654,14 @@ export const ElectrostaticsSim: React.FC = () => {
                 className="w-full accent-cyan-500 cursor-pointer"
               />
 
-              <div className="text-[11px] text-slate-400 flex items-center justify-between">
+              <div className={`text-[11px] flex items-center justify-between ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 <span>{t('شحنة سالبة (-10µC)', 'Negative (-10µC)')}</span>
                 <span>{t('شحنة موجبة (+10µC)', 'Positive (+10µC)')}</span>
               </div>
             </div>
           ) : (
-            <div className={`p-5 rounded-3xl border text-center text-xs text-slate-400 ${
-              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-100 border-slate-200'
+            <div className={`p-5 rounded-3xl border text-center text-xs ${
+              isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
             }`}>
               <Info className="w-5 h-5 mx-auto mb-2 text-slate-500" />
               <span>{t('انقر على أي شحنة لتعديل قيمتها أو حذفها أو اسحبها لتحريكها.', 'Click any charge to modify value or drag to move.')}</span>
@@ -621,13 +672,18 @@ export const ElectrostaticsSim: React.FC = () => {
           <div className={`p-5 rounded-3xl border flex flex-col gap-2 shadow-sm ${
             isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
           }`}>
-            <span className="text-xs font-bold text-slate-300">
+            <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
               {t('قانون كولوم الرياضي (Coulomb\'s Law):', 'Coulomb\'s Law Equation:')}
             </span>
-            <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 font-mono text-center text-xs text-cyan-300">
+            <div
+              dir="ltr"
+              className={`p-3 rounded-xl border font-mono text-center text-xs ${
+                isDark ? 'border-slate-800 bg-slate-950/60 text-cyan-300' : 'border-slate-200 bg-slate-50 text-cyan-700'
+              }`}
+            >
               F = k_e · (|q₁ · q₂|) / r²
             </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
+            <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
               {t('ثابت كولوم k_e = 8.99 × 10⁹ N·m²/C². الشحنات المتشابهة تتنافر والشحنات المختلفة تتجاذب طردياً مع حاصل ضرب الشحنتين وعكسياً مع مربع المسافة بينهما.',
                  'Coulomb constant k_e = 8.99 × 10⁹ N·m²/C². Like charges repel and unlike charges attract inversely proportional to r².')}
             </p>

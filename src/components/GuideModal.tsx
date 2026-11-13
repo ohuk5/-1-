@@ -18,7 +18,10 @@ import {
   Globe2,
   Layers,
   Thermometer,
-  ShieldAlert
+  ShieldAlert,
+  Wind,
+  Orbit,
+  Waves
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ScrollableRibbon } from './ScrollableRibbon';
@@ -34,11 +37,21 @@ export const GuideModal: React.FC<GuideModalProps> = ({
   onClose,
   initialCategory = 'basics'
 }) => {
-  const { lang, theme, t } = useApp();
+  const { lang, theme, t, currentDomain } = useApp();
   const isDark = theme === 'dark';
   const isAr = lang === 'ar';
-  const [activeCategory, setActiveCategory] = useState<'basics' | 'states' | 'atoms' | 'decay' | 'missions'>(initialCategory);
+  const [activeCategory, setActiveCategory] = useState<string>(() => {
+    return currentDomain === 'physics' ? 'physics_mechanics' : initialCategory;
+  });
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  React.useEffect(() => {
+    if (currentDomain === 'physics' && !activeCategory.startsWith('physics_')) {
+      setActiveCategory('physics_mechanics');
+    } else if (currentDomain === 'chemistry' && activeCategory.startsWith('physics_')) {
+      setActiveCategory('basics');
+    }
+  }, [currentDomain]);
 
   if (!isOpen) return null;
 
@@ -59,21 +72,32 @@ export const GuideModal: React.FC<GuideModalProps> = ({
           }`}
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-cyan-950/90 border border-cyan-500/50 flex items-center justify-center text-cyan-400 shrink-0 shadow-sm shadow-cyan-500/20">
-              <BookOpen className="w-5 h-5" />
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+              currentDomain === 'chemistry'
+                ? 'bg-cyan-950/90 border border-cyan-500/50 text-cyan-400 shadow-cyan-500/20'
+                : 'bg-purple-950/90 border border-purple-500/50 text-purple-400 shadow-purple-500/20'
+            }`}>
+              {currentDomain === 'chemistry' ? <BookOpen className="w-5 h-5" /> : <Orbit className="w-5 h-5" />}
             </div>
             <div>
               <h2 className={`text-base sm:text-lg font-black flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                <span>{t('الموسوعة والدليل العلمي التفاعلي المبسط', 'Interactive Scientific Encyclopedia & Guide')}</span>
-                <span className="text-[11px] font-bold bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full border border-cyan-500/30 hidden sm:inline-block">
-                  {t('من الصفر حتى الاحتراف', 'Beginner to Advanced')}
+                <span>
+                  {currentDomain === 'chemistry'
+                    ? t('دليل وموسوعة مختبر الكيمياء التفاعلي', 'Interactive Chemistry Lab Encyclopedia')
+                    : t('دليل وموسوعة مختبر الفيزياء التفاعلي', 'Interactive Physics Lab Encyclopedia')}
+                </span>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border hidden sm:inline-block ${
+                  currentDomain === 'chemistry'
+                    ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+                    : 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                }`}>
+                  {currentDomain === 'chemistry' ? t('كيمياء 3 مسارات', 'Chemistry 3') : t('فيزياء حركية', 'Physics Engine')}
                 </span>
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                {t(
-                  'شرح كل ظاهرة فيزيائية وكيميائية بتشبيهات يومية وأمثلة واقعية يفهمها الجميع',
-                  'Every physical & chemical phenomenon explained with intuitive everyday analogies'
-                )}
+                {currentDomain === 'chemistry'
+                  ? t('شرح بنية الذرات، تكوين الروابط، حالات المادة، النشاط الإشعاعي، وتجارب المعمل العملية', 'Atoms, molecules, phase thermodynamics, radioactivity, and 14 curriculum labs')
+                  : t('شرح محاكي الميكانيكا والطفو، محاكي الديناميكا الحرارية والغازات، ومحاكي الكهرومغناطيسية والكم', 'Mechanics, gas thermodynamics kinetics, Coulomb electrostatics, and photoelectric effect')}
               </p>
             </div>
           </div>
@@ -94,7 +118,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({
             isDark ? 'bg-slate-950/50 border-slate-800/80' : 'bg-slate-100 border-slate-200'
           }`}
         >
-          {/* Category Tabs */}
+          {/* Category Tabs - Strictly isolated for Chemistry vs Physics */}
           <div className="flex-1 min-w-0">
             <ScrollableRibbon
               alwaysShowArrows={true}
@@ -102,65 +126,119 @@ export const GuideModal: React.FC<GuideModalProps> = ({
               scrollAmount={160}
               className="gap-1.5 text-xs font-bold"
             >
-              <button
-                onClick={() => setActiveCategory('basics')}
-                className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                  activeCategory === 'basics'
-                    ? 'bg-amber-600 border-amber-500 text-white shadow-md shadow-amber-600/30'
-                    : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <span>🐣</span>
-                <span>{t('مقدمة المبتدئين', 'Beginner Basics')}</span>
-              </button>
+              {currentDomain === 'chemistry' ? (
+                <>
+                  <button
+                    onClick={() => setActiveCategory('basics')}
+                    className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                      activeCategory === 'basics'
+                        ? 'bg-amber-600 border-amber-500 text-white shadow-md shadow-amber-600/30'
+                        : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>🐣</span>
+                    <span>{t('مقدمة المبتدئين', 'Beginner Basics')}</span>
+                  </button>
 
-              <button
-                onClick={() => setActiveCategory('states')}
-                className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                  activeCategory === 'states'
-                    ? 'bg-orange-600 border-orange-500 text-white shadow-md shadow-orange-600/30'
-                    : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <Flame className="w-3.5 h-3.5" />
-                <span>{t('أسرار حالات المادة والضغط', 'States & Pressure')}</span>
-              </button>
+                  <button
+                    onClick={() => setActiveCategory('states')}
+                    className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                      activeCategory === 'states'
+                        ? 'bg-orange-600 border-orange-500 text-white shadow-md shadow-orange-600/30'
+                        : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Flame className="w-3.5 h-3.5" />
+                    <span>{t('أسرار حالات المادة والضغط', 'States & Pressure')}</span>
+                  </button>
 
-              <button
-                onClick={() => setActiveCategory('atoms')}
-                className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                  activeCategory === 'atoms'
-                    ? 'bg-cyan-600 border-cyan-500 text-white shadow-md shadow-cyan-600/30'
-                    : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <Atom className="w-3.5 h-3.5" />
-                <span>{t('بنية الذرة والجدول الدوري', 'Atoms & Table')}</span>
-              </button>
+                  <button
+                    onClick={() => setActiveCategory('atoms')}
+                    className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                      activeCategory === 'atoms'
+                        ? 'bg-cyan-600 border-cyan-500 text-white shadow-md shadow-cyan-600/30'
+                        : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Atom className="w-3.5 h-3.5" />
+                    <span>{t('بنية الذرة والجدول الدوري', 'Atoms & Table')}</span>
+                  </button>
 
-              <button
-                onClick={() => setActiveCategory('decay')}
-                className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                  activeCategory === 'decay'
-                    ? 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-600/30'
-                    : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <Radiation className="w-3.5 h-3.5" />
-                <span>{t('عمر النصف والإشعاع', 'Half-Life & Decay')}</span>
-              </button>
+                  <button
+                    onClick={() => setActiveCategory('decay')}
+                    className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                      activeCategory === 'decay'
+                        ? 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-600/30'
+                        : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Radiation className="w-3.5 h-3.5" />
+                    <span>{t('عمر النصف والإشعاع', 'Half-Life & Decay')}</span>
+                  </button>
 
-              <button
-                onClick={() => setActiveCategory('missions')}
-                className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                  activeCategory === 'missions'
-                    ? 'bg-purple-600 border-purple-500 text-white shadow-md shadow-purple-600/30'
-                    : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>{t('مهمات وتجارب عملية', 'Missions & Labs')}</span>
-              </button>
+                  <button
+                    onClick={() => setActiveCategory('missions')}
+                    className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                      activeCategory === 'missions'
+                        ? 'bg-purple-600 border-purple-500 text-white shadow-md shadow-purple-600/30'
+                        : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{t('مهمات وتجارب عملية', 'Missions & Labs')}</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setActiveCategory('physics_mechanics')}
+                    className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                      activeCategory === 'physics_mechanics'
+                        ? 'bg-cyan-600 border-cyan-500 text-white shadow-md shadow-cyan-600/30'
+                        : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Waves className="w-3.5 h-3.5" />
+                    <span>{t('محاكي الميكانيكا والطفو', 'Mechanics & Buoyancy')}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveCategory('physics_thermo')}
+                    className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                      activeCategory === 'physics_thermo'
+                        ? 'bg-amber-600 border-amber-500 text-white shadow-md shadow-amber-600/30'
+                        : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Flame className="w-3.5 h-3.5" />
+                    <span>{t('محاكي الديناميكا الحرارية', 'Thermodynamics & Kinetics')}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveCategory('physics_electro')}
+                    className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                      activeCategory === 'physics_electro'
+                        ? 'bg-purple-600 border-purple-500 text-white shadow-md shadow-purple-600/30'
+                        : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>{t('محاكي الكهرومغناطيسية وكولوم', 'Electromagnetism & Coulomb')}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveCategory('physics_optics')}
+                    className={`px-3 py-2 rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                      activeCategory === 'physics_optics'
+                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-600/30'
+                        : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Orbit className="w-3.5 h-3.5" />
+                    <span>{t('البصريات والظاهرة الكهروضوئية', 'Optics & Photoelectric')}</span>
+                  </button>
+                </>
+              )}
             </ScrollableRibbon>
           </div>
 
@@ -1080,6 +1158,586 @@ export const GuideModal: React.FC<GuideModalProps> = ({
                       {t(
                         'في معمل التجارب: بعد توليد غاز الهيدروجين H₂ من تفاعل الصوديوم مع الماء أو المغنيسيوم مع الحمض، انقر فوق أداة «شرارة إشعال ⚡». الملاحظة: يحدث انفجار صوتي سريع وفرقعة مبهجة ناتجة عن اتحاد الهيدروجين بالأكسجين مشكلاً بخار الماء!',
                         'In Experimental Lab: After releasing flammable H2 gas, click "Spark Igniter ⚡". Observation: Fast acoustic Pop detonation occurs as H2 reacts explosively with O2 forming water vapor!'
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════════════ */}
+          {/* CATEGORY: PHYSICS - MECHANICS & BUOYANCY (محاكي الميكانيكا والطفو)  */}
+          {/* ══════════════════════════════════════════════════════════════════════ */}
+          {activeCategory === 'physics_mechanics' && (
+            <div className="space-y-6">
+              {/* Header Banner */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-cyan-950/30 border-cyan-500/30' : 'bg-cyan-50 border-cyan-200'}`}>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+                    <Waves className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base sm:text-lg text-cyan-400">
+                      {t('موسوعة ميكانيكا الموائع وقاعدة أرخميدس والطفو', 'Fluid Mechanics & Archimedes Buoyancy Encyclopedia')}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {t('دراسة متعمقة في ضغط السوائل، قوة الطفو، هندسة الغواصات، وشذوذ كثافة الماء في الطبيعة', 'Deep physics of hydrostatic pressure, buoyant forces, naval engineering, and water anomalies')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 1. Historical & Scientific Discovery */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-cyan-400 mb-2 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  <span>{t('القصة التاريخية والاكتشاف: صرخة «يوريكا!» أرخميدس', 'Historical Discovery: The "Eureka!" of Archimedes')}</span>
+                </h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {t(
+                    'في القرن الثالث قبل الميلاد بمدينة سيراكيوز، طلب الملك هيرو الثاني من العالم اليوناني أرخميدس التحقق مما إذا كان الصائغ قد غش في صناعة تاجه الملكي بخلط الذهب الخالص بالفضة الأقل قيمة، دون إتلاف التاج أو صهره. أثناء غمر أرخميدس لجسمه في حوض الاستحمام، لاحظ فوراً تدفق الماء إلى الخارج وارتفاع منسوبه بمقدار يعادل حجم جسمه المغمور، فخرج مسرعاً في شوارع المدينة وهو يصيح «وجدتها! يوريكا!». قام أرخميدس بوزن كمية متساوية من الذهب الخالص والتاج في الهواء ثم غمرهما في الماء، فاكتشف أن التاج أزاح ماءً أكثر من كتلة الذهب الخالص، مما أثبت علمياً أن كثافة التاج أقل وأن الصائغ قد خلطه بالفعل بالفضة!',
+                    'In 3rd century BC Syracuse, King Hiero II tasked Archimedes to determine if his crown had been adulterated with cheaper silver without melting it. Stepping into a public bath, Archimedes noticed water overflow directly matching his submerged body volume, yelling "Eureka!" into the streets. Comparing displaced water of pure gold vs the crown proved the crown displaced more fluid, confirming silver adulteration through density.'
+                  )}
+                </p>
+              </div>
+
+              {/* 2. Core Mathematical Laws & Units */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-cyan-400 mb-3 flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4" />
+                  <span>{t('القوانين والمعادلات الرياضية المعيارية مع الوحدات الدولية', 'Mathematical Formulas & SI Units')}</span>
+                </h4>
+                
+                {/* Archimedes Law Box */}
+                <div className="bg-slate-900/90 border border-cyan-500/30 rounded-2xl p-4 text-center mb-4">
+                  <span className="font-mono text-cyan-300 text-lg sm:text-xl font-black block mb-1">
+                    F_b = ρ_fluid · V_displaced · g
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-300 mt-2 text-start pt-2 border-t border-slate-800">
+                    <div><b className="text-cyan-400 font-mono">F_b:</b> قوة الطفو (N - نيوتن)</div>
+                    <div><b className="text-cyan-400 font-mono">ρ_fluid:</b> كثافة المائع (kg/m³)</div>
+                    <div><b className="text-cyan-400 font-mono">V_sub:</b> حجم السائل المزاح (m³)</div>
+                    <div><b className="text-cyan-400 font-mono">g:</b> تسارع الجاذبية (9.8 m/s²)</div>
+                  </div>
+                </div>
+
+                {/* Additional fluid laws */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3.5 rounded-2xl border border-sky-500/30 bg-sky-950/20">
+                    <span className="font-bold text-sky-400 block mb-1">
+                      {t('الضغط الهيدروستاتيكي في باطن السائل (Hydrostatic Pressure)', 'Hydrostatic Pressure in Liquids')}
+                    </span>
+                    <span className="font-mono text-sky-300 font-bold block mb-1">P = P₀ + ρ · g · h</span>
+                    <p className="text-slate-400 leading-relaxed">
+                      {t('يزداد الضغط طردياً كلما تعمقنا إلى أسفل (h)، وفارق الضغط بين السطح السفلي والعلوي لأي جسم هو التفسير الفيزيائي الحقيقي لنشأة قوة الطفو للأعلى!', 'Pressure grows linearly with depth h; the pressure difference between object top and bottom generates the upward buoyant net force.')}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl border border-teal-500/30 bg-teal-950/20">
+                    <span className="font-bold text-teal-400 block mb-1">
+                      {t('مبدأ باسكال والأنظمة الهيدروليكية (Pascal\'s Law)', 'Pascal\'s Principle & Hydraulics')}
+                    </span>
+                    <span className="font-mono text-teal-300 font-bold block mb-1">F₁ / A₁ = F₂ / A₂</span>
+                    <p className="text-slate-400 leading-relaxed">
+                      {t('الضغط المطبق على مائع محصور ينتقل بالتساوي إلى جميع جدران الإناء؛ وهو الأساس الهندسي لفرامل السيارات، والروافع الثقيلة، والمكابس الصناعية.', 'Pressure applied to enclosed fluid transmits uniformly; enabling car brake lines, hydraulic cranes, and industrial presses.')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. The 3 States of Buoyancy */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-cyan-400 mb-3 flex items-center gap-2">
+                  <Gauge className="w-4 h-4" />
+                  <span>{t('الحالات الفيزيائية الثلاث لتوازن الأجسام في السوائل', 'The Three Equilibrium Regimes of Buoyancy')}</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-emerald-400 text-sm">1. يطفو (Floating)</span>
+                      <span className="font-mono text-emerald-300 text-[11px] font-bold">ρ_obj &lt; ρ_fluid</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t('قوة الطفو عند الغمر الكامل أكبر من وزن الجسم، فيرتفع الجسم للأعلى حتى يستقر طافياً بنسبة حجم مغمور تساوي بالضبط نسبة الكثافتين: V_sub / V_total = ρ_obj / ρ_fluid.', 'Max buoyancy exceeds weight; object bobs up until fraction submerged equals ratio of densities.')}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl border border-amber-500/30 bg-amber-950/20 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-amber-400 text-sm">2. معلق (Neutral)</span>
+                      <span className="font-mono text-amber-300 text-[11px] font-bold">ρ_obj = ρ_fluid</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t('قوة الطفو تتساوى تماماً مع وزن الجسم، فيستقر الجسم متزناً في أي عمق يوضع فيه دون أن يطفو للسطح أو يهبط للقاع (حالة الطفو المحايد كما في الغواصات والغواصين).', 'Buoyancy balances weight precisely; object stays stationary at any depth (neutral buoyancy used by submersibles and divers).')}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl border border-rose-500/30 bg-rose-950/20 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-rose-400 text-sm">3. يغرق (Sinking)</span>
+                      <span className="font-mono text-rose-300 text-[11px] font-bold">ρ_obj &gt; ρ_fluid</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t('وزن الجسم يتغلب على أقصى قوة طفو يمكن أن يوفرها السائل، فيتسارع الجسم نحو القاع وتصبح القوة الضاغطة على أرضية الحوض مساوية للوزن الظاهري: W_app = W - F_b.', 'Weight overcomes maximum buoyant capacity; object descends to base with apparent weight W_apparent = W - F_b.')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Real-World Engineering & Natural Applications */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-cyan-400 mb-3 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  <span>{t('تطبيقات هندسية مذهلة في العالم الواقعي', 'Remarkable Real-World Engineering Applications')}</span>
+                </h4>
+                <div className="space-y-2.5 text-xs">
+                  <div className="p-3 rounded-2xl border border-slate-800 bg-slate-900/60 space-y-1">
+                    <span className="font-bold text-cyan-300 block text-[13px]">
+                      {t('1. هندسة الغواصات البحرية وخزانات الصابورة (Ballast Tanks)', '1. Submarines & Ballast Tank Fluid Dynamics')}
+                    </span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t(
+                        'تمتلك الغواصة خزانات صابورة مزدوجة؛ عندما ترغب في الغوص، تفتح صمامات الخزانات ليدخل ماء البحر ليحل محل الهواء، فيزداد متوسط كثافة الغواصة لتصبح أكبر من الماء فتغوص. وعند الرغبة في الصعود للسطح، يُضخ هواء عالي الضغط لطرد ماء البحر خارجاً، فتنخفض الكثافة المتوسطة وتطفو الغواصة!',
+                        'Submarines vent ballast tanks to flood seawater replacing air to submerge, and blow compressed air into the tanks to expel water to surface.'
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-2xl border border-slate-800 bg-slate-900/60 space-y-1">
+                    <span className="font-bold text-cyan-300 block text-[13px]">
+                      {t('2. سر طفو السفن الفولاذية العملاقة (Steel Container Ships)', '2. Giant Steel Ships & Displaced Volume Engineering')}
+                    </span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t(
+                        'تبلغ كثافة الفولاذ والحديد 7,850 kg/m³ (أثقل بـ 8 أضعاف من الماء)، ومع ذلك تحمل السفن عشرات الآلاف من الأطنان وتطفو! السر يكمن في التصميم الهندسي للهيكل، حيث يحتوي على تجويف هوائي داخلي هائل؛ هذا الحجم الضخم يزيح كمية مياه هائلة وزنها يفوق وزن السفينة بالكامل، فيصبح متوسط كثافة السفينة (كتلة السفينة الكلية ÷ حجمها الكلي) أقل من 1,000 kg/m³ فتطفو بأمان.',
+                        'Steel is 8 times denser than water, yet ships float because the hollow interior hull volume displaces sufficient water weight to lower mean bulk density below water.'
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-2xl border border-slate-800 bg-slate-900/60 space-y-1">
+                    <span className="font-bold text-cyan-300 block text-[13px]">
+                      {t('3. مقياس كثافة السوائل (الهيدرومتر Hydrometer)', '3. Hydrometers & Quality Testing in Industries')}
+                    </span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t(
+                        'أنبوب زجاجي مدرج يحتوي على ثقل رصاصي في قاعدته؛ عند وضعه في سائل، يطفو رأسياً ويشير خط انغماره مباشرة إلى كثافة السائل. يُستخدم لفحص نقاء العسل، واختبار نسبة السكر، وتحديد شحن بطاريات حمض الرصاص في السيارات، وفحص جودة الحليب.',
+                        'Calibrated floating glass instruments measure fluid specific gravity directly; utilized in testing honey purity, battery acid electrolyte, and dairy quality.'
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. Physical Data Reference Table */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-cyan-400 mb-3 flex items-center gap-2">
+                  <Layers className="w-4 h-4" />
+                  <span>{t('جدول الكثافات المعيارية للمواد والسوائل في الفيزياء (kg/m³)', 'Standard Density Reference Table (kg/m³)')}</span>
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-center font-mono">
+                  <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                    <span className="text-slate-400 text-[10px] block font-sans">البلاتين (Pt)</span>
+                    <span className="text-cyan-300 font-bold">21,450 kg/m³</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                    <span className="text-slate-400 text-[10px] block font-sans">الذهب الخالص (Au)</span>
+                    <span className="text-amber-400 font-bold">19,300 kg/m³</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                    <span className="text-slate-400 text-[10px] block font-sans">الزئبق السائل (Hg)</span>
+                    <span className="text-purple-300 font-bold">13,600 kg/m³</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                    <span className="text-slate-400 text-[10px] block font-sans">الرصاص (Pb)</span>
+                    <span className="text-slate-300 font-bold">11,340 kg/m³</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                    <span className="text-slate-400 text-[10px] block font-sans">الحديد والصلب (Fe)</span>
+                    <span className="text-blue-300 font-bold">7,850 kg/m³</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                    <span className="text-slate-400 text-[10px] block font-sans">الألومنيوم (Al)</span>
+                    <span className="text-sky-300 font-bold">2,700 kg/m³</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                    <span className="text-slate-400 text-[10px] block font-sans">الماء العذب (H₂O)</span>
+                    <span className="text-emerald-400 font-bold">1,000 kg/m³</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                    <span className="text-slate-400 text-[10px] block font-sans">الجليد المائي</span>
+                    <span className="text-cyan-200 font-bold">917 kg/m³</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════════════ */}
+          {/* CATEGORY: PHYSICS - THERMODYNAMICS (محاكي الديناميكا الحرارية)         */}
+          {/* ══════════════════════════════════════════════════════════════════════ */}
+          {activeCategory === 'physics_thermo' && (
+            <div className="space-y-6">
+              {/* Header Banner */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-amber-950/30 border-amber-500/30' : 'bg-amber-50 border-amber-200'}`}>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                    <Flame className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base sm:text-lg text-amber-400">
+                      {t('موسوعة الديناميكا الحرارية والنظرية الحركية للغازات', 'Thermodynamics & Gas Kinetics Encyclopedia')}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {t('شرح قوانين الديناميكا الحرارية الأربعة، الإنتروبيا، معادلة الغاز المثالي، ودورة كارنو الحرارية', 'The 4 laws of thermodynamics, entropy, ideal gas equation, kinetic theory, and heat engines')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 1. Historical & Scientific Context */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-amber-400 mb-2 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  <span>{t('تطور علم الديناميكا الحرارية: من الآلة البخارية إلى الإنتروبيا', 'Origins of Thermodynamics: From Steam Engines to Entropy')}</span>
+                </h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {t(
+                    'تأسس علم الديناميكا الحرارية في مطلع القرن التاسع عشر خلال الثورة الصناعية، للإجابة على سؤال هندسي محوري: ما هو الحد الأقصى لكفاءة تحويل الحرارة إلى شغل ميكانيكي نافع؟ قام المهندس الفرنسي سادي كارنو عام 1824 بوضع الأساس النظري للمحركات الحرارية (دورة كارنو)، تلاه جيمس بريسكوت جول الذي أثبت بتجارب دقيقة أن الحرارة شكل من أشكال الطاقة الميكانيكية المكافئة، وصولاً إلى لودفيغ بولتزمان ورودولف كلاوزيوس اللذين ربطا الحرارة بالحركة العشوائية المجهرية للجزيئات وصاغا مفهوم «الإنتروبيا» وسهم الزمن الكوني.',
+                    'Thermodynamics was born in the 19th-century Industrial Revolution seeking maximum steam engine efficiency. Sadi Carnot (1824) formulated ideal thermal cycles, James Joule proved heat is energy equivalence, and Ludwig Boltzmann linked macro states to microscopic statistical mechanics and entropy.'
+                  )}
+                </p>
+              </div>
+
+              {/* 2. The 4 Laws of Thermodynamics */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-amber-400 mb-3 flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4" />
+                  <span>{t('قوانين الديناميكا الحرارية الأربعة (The 4 Fundamental Laws)', 'The 4 Fundamental Laws of Thermodynamics')}</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3.5 rounded-2xl border border-sky-500/30 bg-sky-950/20 space-y-1">
+                    <span className="font-bold text-sky-400 text-sm">القانون الصفري (Zeroth Law) - الاتزان الحراري</span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t('إذا كان النظام A في اتزان حراري مع B، وكان B في اتزان حراري مع C، فإن A في اتزان حراري مع C. هذا القانون هو الأساس المنطقي لاختراع مقاييس الحرارة (الثيرمومترات).', 'Thermal equilibrium is transitive; establishing empirical temperature measurement via thermometers.')}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl border border-amber-500/30 bg-amber-950/20 space-y-1">
+                    <span className="font-bold text-amber-400 text-sm">القانون الأول (First Law) - حفظ الطاقة</span>
+                    <span className="font-mono text-amber-300 font-bold block">ΔU = Q - W</span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t('الطاقة لا تفنى ولا تُستحدث من العدم بل تتحول من شكل لآخر؛ التغير في الطاقة الداخلية للنظام يساوي الحرارة المضافة مطروحاً منها الشغل المنجز.', 'Total energy is conserved; internal energy change ΔU equals heat absorbed Q minus work done W.')}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl border border-rose-500/30 bg-rose-950/20 space-y-1">
+                    <span className="font-bold text-rose-400 text-sm">القانون الثاني (Second Law) - الإنتروبيا وسهم الزمن</span>
+                    <span className="font-mono text-rose-300 font-bold block">ΔS_universe ≥ 0</span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t('تنتقل الحرارة تلقائياً دائماً من الجسم الأسخن إلى الأبرد وليس العكس؛ وإنتروبيا (عشوائية) أي نظام معزول تزداد حتماً بمرور الزمن ولا يمكن بناء محرك حراري بكفاءة 100%.', 'Natural processes are irreversible; universe entropy grows, preventing perpetual 100% efficient heat engines.')}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl border border-teal-500/30 bg-teal-950/20 space-y-1">
+                    <span className="font-bold text-teal-400 text-sm">القانون الثالث (Third Law) - الصفر المطلق</span>
+                    <span className="font-mono text-teal-300 font-bold block">T → 0 K  ⇒  S → 0</span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t('عند الاقتراب من الصفر المطلق (0 K = -273.15°C)، تصبح إنتروبيا البلورة النقية المنتظمة تماماً صفراً، ويستحيل تبريد أي نظام إلى الصفر المطلق في خطوات محدودة.', 'As temperature approaches absolute zero, pure crystal entropy approaches zero; 0 K is unreachable in finite steps.')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Gas Laws & Microscopic Kinetic Theory */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-amber-400 mb-3 flex items-center gap-2">
+                  <Wind className="w-4 h-4" />
+                  <span>{t('النظرية الحركية المجهرية ومعادلات الغاز المثالي', 'Microscopic Kinetic Theory & Gas State Equations')}</span>
+                </h4>
+                
+                <div className="bg-slate-900/90 border border-amber-500/30 rounded-2xl p-4 text-center mb-4">
+                  <span className="font-mono text-amber-300 text-lg sm:text-xl font-black block mb-1">
+                    P · V = n · R · T   =   N · k_B · T
+                  </span>
+                  <p className="text-xs text-slate-400 mt-2">
+                    {t(
+                      'P: الضغط | V: الحجم | n: المولات | R: ثابت الغازات العام (8.314 J/mol·K) | k_B: ثابت بولتزمان (1.38 × 10⁻²³ J/K) | T: درجة الحرارة المطلقة (K)',
+                      'P: Pressure | V: Volume | n: Moles | R: Gas Constant (8.314 J/mol·K) | k_B: Boltzmann Constant | T: Kelvin'
+                    )}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="p-3.5 rounded-2xl border border-sky-500/30 bg-sky-950/20 space-y-1">
+                    <span className="font-bold text-sky-400 block text-sm">قانون بويل (Boyle)</span>
+                    <span className="font-mono text-sky-300 block font-bold">P₁ · V₁ = P₂ · V₂</span>
+                    <p className="text-slate-400 leading-relaxed">
+                      {t('عند ثبوت الحرارة (T): مضاعفة الضغط تؤدي لنصف الحجم فورياً؛ لأن تقليص الحجم يضاعف عدد اصطدامات الجسيمات بالجدار.', 'Fixed T: Pressure inversely proportional to volume. Halving volume doubles wall collision frequency.')}
+                    </p>
+                  </div>
+                  <div className="p-3.5 rounded-2xl border border-rose-500/30 bg-rose-950/20 space-y-1">
+                    <span className="font-bold text-rose-400 block text-sm">قانون شارل (Charles)</span>
+                    <span className="font-mono text-rose-300 block font-bold">V₁ / T₁ = V₂ / T₂</span>
+                    <p className="text-slate-400 leading-relaxed">
+                      {t('عند ثبوت الضغط (P): يتمدد الغاز طردياً مع ارتفاع الحرارة بالكلفن؛ لتعويض تزايد سرعة الجزيئات والحفاظ على اتزان الضغط.', 'Fixed P: Volume proportional to Kelvin temp. Heated gas expands to maintain balanced pressure.')}
+                    </p>
+                  </div>
+                  <div className="p-3.5 rounded-2xl border border-amber-500/30 bg-amber-950/20 space-y-1">
+                    <span className="font-bold text-amber-400 block text-sm">قانون غاي-لوساك (Gay-Lussac)</span>
+                    <span className="font-mono text-amber-300 block font-bold">P₁ / T₁ = P₂ / T₂</span>
+                    <p className="text-slate-400 leading-relaxed">
+                      {t('عند ثبوت الحجم (V): تسخين الغاز المحصور يزيد طاقة حركة الجزيئات وعنف اصطدامها فيرتفع الضغط الداخلي رأسياً.', 'Fixed V: Confined gas heating boosts particle impact kinetic energy, driving internal pressure.')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Real-World Engineering Applications */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-amber-400 mb-3 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  <span>{t('تطبيقات واقعية في التكنولوجيا والحياة المعاصرة', 'Real-World Technology Applications')}</span>
+                </h4>
+                <div className="space-y-2.5 text-xs">
+                  <div className="p-3 rounded-2xl border border-slate-800 bg-slate-900/60 space-y-1">
+                    <span className="font-bold text-amber-300 block text-[13px]">
+                      {t('1. دورة كارنو وكفاءة محركات السيارات ومحطات توليد الطاقة', '1. Carnot Cycle & Power Plant Efficiency Limits')}
+                    </span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t(
+                        'وضع كارنو المعادلة الرياضية للحد الأقصى لكفاءة أي محرك حراري يعمل بين مستودع ساخن (T_hot) ومستودع بارد (T_cold): η = 1 - (T_cold / T_hot). لذلك تسعى محطات الكهرباء وتوربينات الطائرات للعمل بأعلى درجات حرارة ممكنة لرفع الكفاءة وتقليل الوقود المهدور.',
+                        'Carnot established max thermal efficiency η = 1 - (T_cold / T_hot). Jet turbines and power plants burn fuels at maximum safe temperatures to minimize thermodynamic loss.'
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-2xl border border-slate-800 bg-slate-900/60 space-y-1">
+                    <span className="font-bold text-amber-300 block text-[13px]">
+                      {t('2. كيف تعمل الثلاجات والمكيفات؟ (دورة التبريد الانضغاطية)', '2. How Refrigerators & Air Conditioners Work')}
+                    </span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t(
+                        'لا يُنشئ المكيف "برودة"، بل ينقل الحرارة من داخل الغرفة إلى الشارع! يضغط الضاغط غاز الفريون لترتفع حرارته ويتحول لسائل مكثف في المشتت الخارجي طارداً الحرارة، ثم يمر عبر صمام تمدد دقيق (تأثير جول-طومسون) فينخفض ضغطه فجأة ويتبخر ممتصاً كميات هائلة من حرارة الغرفة.',
+                        'Refrigerators transfer indoor heat outside through cyclic vapor compression, condensing hot gas and expanding it across throttling valves to chill air.'
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════════════ */}
+          {/* CATEGORY: PHYSICS - ELECTROMAGNETISM (محاكي الكهرومغناطيسية وكولوم)    */}
+          {/* ══════════════════════════════════════════════════════════════════════ */}
+          {activeCategory === 'physics_electro' && (
+            <div className="space-y-6">
+              {/* Header Banner */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-purple-950/30 border-purple-500/30' : 'bg-purple-50 border-purple-200'}`}>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
+                    <Zap className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base sm:text-lg text-purple-400">
+                      {t('موسوعة الكهرومغناطيسية وقانون كولوم والمجالات الكهربائية', 'Electromagnetism & Coulomb Fields Encyclopedia')}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {t('شرح القوة الكهروستاتيكية، متجهات المجال والجهد، قفص فاراداي، وتطبيقات الطابعات الليزرية', 'Coulomb\'s inverse-square law, vector field lines, potential energy, Faraday cages, and electrostatic tech')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 1. Historical & Scientific Context */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-purple-400 mb-2 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  <span>{t('الاكتشاف وتجربة ميزان الالتواء لشارل كولوم (1785)', 'Discovery & Charles Coulomb\'s Torsion Balance (1785)')}</span>
+                </h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {t(
+                    'في عام 1785، صمم الفيزيائي والمهندس الفرنسي شارل كولوم جهازاً فائق الدقة سُمي «ميزان الالتواء» (Torsion Balance) لقياس القوى بالغة الضآلة بين الكرات المشحونة بالكهرباء الساكنة. من خلال قياس زاوية التواء خيط حريري رفيع بدقة، استنتج كولوم أن القوة تتناسب طردياً مع حاصل ضرب الشحنتين، وعكسياً مع مربع المسافة بينهما، مشابهاً في شكله لقانون الجاذبية الكونية لنيوتن، لكنه يفوقه بمليارات المليارات من المرات في القوة والشدة!',
+                    'In 1785, Charles-Augustin de Coulomb invented the torsion balance to measure miniscule electrostatic forces. Measuring fiber twist angles established the inverse-square force law proportional to charge product.'
+                  )}
+                </p>
+              </div>
+
+              {/* 2. Coulomb's Law & Core Equations */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-purple-400 mb-3 flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4" />
+                  <span>{t('قانون كولوم والمعادلات الحاكمة للمجال والجهد الكهربائي', 'Coulomb\'s Law, Electric Fields & Potential')}</span>
+                </h4>
+                
+                <div className="bg-slate-900/90 border border-purple-500/30 rounded-2xl p-4 text-center mb-4">
+                  <span className="font-mono text-purple-300 text-lg sm:text-xl font-black block mb-1">
+                    F = k_e · (|q₁ · q₂|) / r²
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-slate-300 mt-2 text-start pt-2 border-t border-slate-800">
+                    <div><b className="text-purple-400 font-mono">F:</b> القوة المتبادلة (N)</div>
+                    <div><b className="text-purple-400 font-mono">q₁, q₂:</b> الشحنات (C - كولوم)</div>
+                    <div><b className="text-purple-400 font-mono">k_e:</b> 8.98755 × 10⁹ N·m²/C²</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3.5 rounded-2xl border border-purple-500/30 bg-purple-950/20 space-y-1">
+                    <span className="font-bold text-purple-400 text-sm">شدة المجال الكهربائي (Electric Field E)</span>
+                    <span className="font-mono text-purple-300 font-bold block">E = F / q = k_e · |Q| / r²  (N/C)</span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t('المجال الكهربائي هو خاصية فيزيائية للفضاء المحيط بالشحنة؛ يعبر اتجاهه عن اتجاه القوة المؤثرة على شحنة اختبارية موجبة افتراضية، وتخرج خطوطه من الشحنات الموجبة وتدخل في السالبة.', 'Electric field measures force per unit positive test charge; vector lines emanate from positive toward negative charges.')}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl border border-cyan-500/30 bg-cyan-950/20 space-y-1">
+                    <span className="font-bold text-cyan-400 text-sm">الجهد وطاقة الوضع (Potential & Energy)</span>
+                    <span className="font-mono text-cyan-300 font-bold block">V = k_e · Q / r  (Volt) | U = q · V</span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t('الجهد الكهربائي هو طاقة الوضع لكل وحدة شحنة؛ وتتحرك الشحنات الموجبة تلقائياً من الجهد المرتفع إلى المنخفض، بينما تتحرك الإلكترونات السالبة نحو الجهد المرتفع.', 'Electric potential represents potential energy per unit charge; positive charges fall toward lower potentials, while electrons drift up.')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Real-World Engineering Applications */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-purple-400 mb-3 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  <span>{t('تطبيقات هندسية وتكنولوجية ملموسة', 'Engineering & Everyday Technologies')}</span>
+                </h4>
+                <div className="space-y-2.5 text-xs">
+                  <div className="p-3 rounded-2xl border border-slate-800 bg-slate-900/60 space-y-1">
+                    <span className="font-bold text-purple-300 block text-[13px]">
+                      {t('1. قفص فاراداي (Faraday Cage) وحماية الطائرات والسيارات من الصواعق', '1. Faraday Cages: Lightning Protection in Airplanes & Cars')}
+                    </span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t(
+                        'عندما يتعرض موصل مجوف (مثل هيكل الطائرة أو السيارة المصنوع من الألمنيوم والصلب) لشحنات خارجية أو ضربة صاعقة بآلاف الفولتات، تتوزع الشحنات فورياً على السطح الخارجي فقط ويتلاشى المجال الكهربائي تماماً داخل المقصورة (E = 0)، مما يحمي الركاب والأجهزة الإلكترونية الحساسة من أي صعق.',
+                        'Charges placed on a hollow conductor rapidly redistribute entirely to exterior surfaces, ensuring net interior field is strictly zero and shielding passengers.'
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-2xl border border-slate-800 bg-slate-900/60 space-y-1">
+                    <span className="font-bold text-purple-300 block text-[13px]">
+                      {t('2. الطابعات الليزرية وماكينات التصوير (Laser Printing & Electro-Xerography)', '2. Laser Printing & Electrostatic Toners')}
+                    </span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t(
+                        'تعتمد الطباعة الليزرية بالكامل على الكهروستاتيكا؛ حيث تُشحن أسطوانة الطباعة بشحنة ساكنة موجبة، ثم يرسم شعاع الليزر الحروف بإلغاء الشحنة في مناطق محددة، فتنجذب حبيبات الحبر السالبة (Toner) حصراً للأماكن المشحونة وتُنقل إلى الورق ثم تُثبت حرارياً.',
+                        'Laser printers use electrostatic drums where laser pulses discharge text patterns, attracting charged powdered toner particles onto paper.'
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════════════ */}
+          {/* CATEGORY: PHYSICS - QUANTUM & OPTICS (محاكي البصريات والكم)           */}
+          {/* ══════════════════════════════════════════════════════════════════════ */}
+          {activeCategory === 'physics_optics' && (
+            <div className="space-y-6">
+              {/* Header Banner */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-indigo-950/30 border-indigo-500/30' : 'bg-indigo-50 border-indigo-200'}`}>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                    <Orbit className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base sm:text-lg text-indigo-400">
+                      {t('موسوعة البصريات والظاهرة الكهروضوئية وفيزياء الكم', 'Quantum Physics & Photoelectric Effect Encyclopedia')}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {t('تفسير أينشتاين الحائز على نوبل، فوتونات الضوء، دالة الشغل، وازدواجية الموجة والجسيم', 'Einstein\'s Nobel-winning quantum photoelectric law, photon energy, work function, and wave-particle duality')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 1. Historical & Scientific Context */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-indigo-400 mb-2 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  <span>{t('ثورة فيزياء الكم وورقة أينشتاين المعجزة (1905)', 'Quantum Revolution & Einstein\'s Miracle Year (1905)')}</span>
+                </h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {t(
+                    'في نهاية القرن التاسع عشر، وقفت الفيزياء الكلاسيكية عاجزة تماماً عن تفسير الظاهرة الكهروضوئية: لماذا لا يحرر الضوء الأحمر الشديد إلكتروناً واحداً مهما زادت شدته، بينما ومضة خافتة جداً من الضوء فوق البنفسجي تحرر إلكترونات فورياً دون أي تأخير زمني؟ في عام 1905، قدّم ألبرت أينشتاين حلاً ثورياً حاز عليه جائزة نوبل في الفيزياء عام 1921: اقترح أن الضوء لا ينتقل فقط كموجات مستمرة، بل يتألف من حزم طاقة كمية مكممة منفصلة سميت "فوتونات" (Photons)، حيث يصطدم فوتون واحد بإلكترون واحد وينقل إليه طاقته بالكامل!',
+                    'Classical physics failed to explain why intense red light emitted zero electrons while faint ultraviolet instantly freed electrons. In 1905, Albert Einstein proposed that light consists of quantized energy packets (photons) E = hf, winning him the 1921 Nobel Prize.'
+                  )}
+                </p>
+              </div>
+
+              {/* 2. Photoelectric Equations & Core Laws */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-indigo-400 mb-3 flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4" />
+                  <span>{t('معادلة أينشتاين الكهروضوئية وحساب دالة الشغل', 'Einstein Photoelectric Equation & Work Function')}</span>
+                </h4>
+                
+                <div className="bg-slate-900/90 border border-indigo-500/30 rounded-2xl p-4 text-center mb-4">
+                  <span className="font-mono text-indigo-300 text-lg sm:text-xl font-black block mb-1">
+                    E_photon = h · f = Φ + K_max = Φ + e · V_stop
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-300 mt-2 text-start pt-2 border-t border-slate-800">
+                    <div><b className="text-indigo-400 font-mono">h:</b> ثابت بلانك (6.626 × 10⁻³⁴ J·s)</div>
+                    <div><b className="text-indigo-400 font-mono">f:</b> تردد الضوء الساقط (Hz)</div>
+                    <div><b className="text-indigo-400 font-mono">Φ:</b> دالة الشغل للفلز (eV)</div>
+                    <div><b className="text-indigo-400 font-mono">V_stop:</b> جهد الإيقاف (Volt)</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3.5 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 space-y-1">
+                    <span className="font-bold text-indigo-400 text-sm">تردد العتبة (Cutoff Threshold f₀)</span>
+                    <span className="font-mono text-indigo-300 font-bold block">f₀ = Φ / h</span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t('هو أقل تردد للفوتون يمكنه تحرير إلكترون من سطح الفلز. إذا كان f < f₀ فلن تنبعث أي إلكترونات مهما بلغت شدة الإضاءة أو مدة التعرض.', 'Minimum light frequency required to liberate an electron. If f < f₀, no electrons can escape regardless of beam intensity.')}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl border border-amber-500/30 bg-amber-950/20 space-y-1">
+                    <span className="font-bold text-amber-400 text-sm">الطبيعة المزدوجة وموجة دي برولي</span>
+                    <span className="font-mono text-amber-300 font-bold block">λ = h / p = h / (m · v)</span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t('أثبت لويس دي برولي أن كل جسيم مادي متحرك (مثل الإلكترون) تصاحبه موجة حقيقية؛ وهو الاكتشاف الذي فتح الباب لاختراع المجهر الإلكتروني الفائق.', 'Louis de Broglie demonstrated moving matter exhibits wave characteristics, enabling electron microscopy.')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Real-World Quantum Technologies */}
+              <div className={`p-5 rounded-3xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className="font-bold text-sm text-indigo-400 mb-3 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  <span>{t('تطبيقات تكنولوجية معاصرة غيرت العالم', 'Contemporary Technologies Powered by Quantum Optics')}</span>
+                </h4>
+                <div className="space-y-2.5 text-xs">
+                  <div className="p-3 rounded-2xl border border-slate-800 bg-slate-900/60 space-y-1">
+                    <span className="font-bold text-indigo-300 block text-[13px]">
+                      {t('1. الخلايا والألواح الشمسية الكهروضوئية (Solar PV Cells)', '1. Solar Photovoltaic Panels')}
+                    </span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t(
+                        'تعتمد الألواح الشمسية المصنوعة من السيليكون على الظاهرة الكهروضوئية؛ فعندما تصطدم فوتونات أشعة الشمس بسطح الخلية الشمسية، تنقل طاقتها إلى إلكترونات السيليكون فتتحرر وتتدفق عبر موصلات الخلية مشكلة تياراً كهربائياً نظيفاً يغذي المنازل والمدن.',
+                        'Silicon solar panels absorb solar photons to free conduction electrons across p-n semiconductor junctions, producing clean electricity.'
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-2xl border border-slate-800 bg-slate-900/60 space-y-1">
+                    <span className="font-bold text-indigo-300 block text-[13px]">
+                      {t('2. مستشعرات كاميرات الهواتف الذكية والتصوير الرقمي (CMOS Sensors)', '2. Digital Camera & Smartphone Image Sensors')}
+                    </span>
+                    <p className="text-slate-300 leading-relaxed">
+                      {t(
+                        'كل بكسل في كاميرا هاتفك يحتوي على صمام ثنائي ضوئي يحرر شحنات إلكترونية عند سقوط فوتونات المشهد، ويحولها إلى إشارات رقمية ترسم تفاصيل صورتك بدقة متناهية.',
+                        'Every pixel on smartphone camera sensors contains photodiodes liberating electrons upon photon impact to assemble digital images.'
                       )}
                     </p>
                   </div>
